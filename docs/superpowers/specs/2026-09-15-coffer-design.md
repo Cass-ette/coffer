@@ -52,7 +52,9 @@ vault.vault 文件（单文件，AES-256-GCM 加密的 JSON，原子写入）
   │ 主密码路径                      │ 生物认证路径               │
   │ PBKDF2-SHA256(600k 迭代)       │ Keychain 条目              │
   │ 派生 KEK → 包装 DEK            │ ACL: Touch ID / Mac 密码   │
-  │ （包装结果存 vault 文件内）      │ （DEK 明文永不出安全硬件）  │
+  │ （包装结果存 vault 文件内）      │ （验证发生在安全硬件；      │
+  │                               │  放行后 DEK 进内存，       │
+  │                               │  锁定时清零，见 5.2）      │
   └───────────────────────────────┴──────────────────────────┘
 ```
 
@@ -93,8 +95,9 @@ struct Entry: Codable, Identifiable {
     var tags: [String]
     var isFavorite: Bool
     var permissionNote: String     // "我的权限"备注，所有类型都有
-    var customFields: [CustomField] // 名值对，可标记为敏感
-    var createdAt / updatedAt: Date
+    var customFields: [CustomField] // 名值对；isSensitive=true 时列表与详情打码、可复制、不参与搜索
+    var createdAt: Date
+    var updatedAt: Date
     // 类型特有载荷放各类型的 struct，经 Codable 多态编码
 }
 ```
@@ -106,13 +109,15 @@ struct Entry: Codable, Identifiable {
 | `apiKey` | API key、token、数据库密码 | 服务商、secret、环境前缀 |
 | `sshKey` | SSH 私钥 | 主机、用户、私钥文本（公钥可由私钥推导或单独存） |
 | `totp` | 2FA 动态码 | 种子（支持粘贴 `otpauth://` URI 自动解析）、算法（SHA-1 默认）、位数（6 默认）、周期（30s 默认） |
-| `secureNote` | 证件、恢复码、助记词 | 富文本正文、加密附件 |
+| `secureNote` | 证件、恢复码、助记词 | 纯文本多行正文（v1 明确不做富文本，留作未来项）、加密附件 |
+
+login 与 totp 是**相互独立的条目**，不做外键关联；需要一起找时靠相同标题/标签聚合（YAGNI 决策，写明防止计划阶段擅自发明关系模型）。
 
 ### 6.2 分组与标签
 
 - 分组：一层平级，预置"内网系统 / 校内服务 / 开发密钥 / 个人"四个可改名可删，条目至多属一个分组
 - 标签：自由字符串，无层级，侧边栏按标签聚合
-- 附件（仅 secureNote）：单张 ≤ 2MB，录入时拦截超限；附件随 vault 一起加密
+- 附件（仅 secureNote）：单张 ≤ 2MB，每条笔记至多 5 张，录入时拦截超限；附件随 vault 一起加密
 
 ### 6.3 vault 文件格式
 
@@ -128,14 +133,17 @@ struct Entry: Codable, Identifiable {
 ```
 
 - 明文 payload 是一个 JSON（entries + groups + settings + schemaVersion），整库加密
+- **设置分两层**：加密层随 vault（自动锁定时长、剪贴板清空时长等安全偏好）；启动前层走 UserDefaults 不加密（全局快捷键、是否登录时启动）——快捷键必须在解锁前可读，否则冷启动到首次解锁之间浮窗无法呼出
 - 位置：`~/Library/Application Support/Coffer/vault.vault`
 - 保存 = 写临时文件 → `rename` 原子替换；每次成功保存前，将旧文件轮换进 `vault.bak1~3`
+- 保存时机：每次条目/设置变更**即时保存**（单文件原子写足够轻量，不做防抖与自动保存间隔）
 - 版本迁移：未来 format version 变更时按 version 逐级升级，v1 只需读取自己
 
 ## 7. 检索设计
 
 - 解锁后全量条目进内存索引，搜索无 I/O
 - 匹配：模糊子序列（连续命中加权）+ 子串命中，匹配范围与权重：标题 > 标签 > URL/地址 > subtitle > 权限备注
+- **明确不参与搜索**：密码/密钥等敏感字段、secureNote 正文、敏感自定义字段的值——防止"搜索联想本身泄密"，也避免索引暴露密钥片段
 - 分组目录与标签聚合与搜索正交组合（在"内网系统"分组内再搜）
 - 全局浮窗与主窗口共用同一搜索实现
 
@@ -162,7 +170,8 @@ struct Entry: Codable, Identifiable {
 
 - 默认快捷键 `⌥Space`，可在设置中修改；注册冲突（如 Raycast 占用）时提示用户换键
 - 居中 NSPanel + 毛玻璃；锁定状态下呼出 → 先指纹 → 直接进入搜索
-- 键盘闭环：↑↓ 选择、↵ 复制用户名（或该类型主字段）、Tab 循环复制目标（密码/验证码/地址）、⌘↵ 打开 URL、Esc 关闭；复制完成自动关闭浮窗并启动剪贴板清空计时
+- 键盘闭环：↑↓ 选择、↵ 复制该类型主字段、Tab 循环复制目标、⌘↵ 打开 URL、Esc 关闭；复制完成自动关闭浮窗并启动剪贴板清空计时
+- 各类型主字段（↵ 的复制目标）：login→用户名、access→地址、apiKey→secret、sshKey→用户名、totp→当前验证码、secureNote→无（↵ 仅展开）；Tab 循环顺序：主字段 → 密码/种子/正文 → 第一个 URL
 - TOTP 结果行内直接显示实时验证码与剩余秒数
 
 ### 8.4 App 图标（Logo）
@@ -177,10 +186,12 @@ struct Entry: Codable, Identifiable {
 | 指纹取消/失败 | 锁定页常驻主密码入口 |
 | 主密码错误 | 即时提示错误；PBKDF2 高迭代即防爆破，不惩罚性锁死 |
 | vault 校验失败/损坏 | 明确报错，引导从 `vault.bak1~3` 恢复（设置内提供"从备份恢复"入口） |
+| vault 文件不存在但备份存在 | 判定为数据丢失而非首次使用，提示从备份恢复，不进入全新设置向导 |
+| vault 与备份全部不存在 | 进入首次设置向导（设主密码 → 建空库） |
 | 磁盘写入失败 | 原子写保证旧文件不损坏；报错并保留内存态不丢编辑 |
 | 附件超 2MB | 录入时拦截提示 |
 | 快捷键注册冲突 | 启动时检测，设置页提示换键 |
-| 保存时程序崩溃 | 最多丢失自上次自动保存以来的改动；锁定/退出前强制保存 |
+| 保存时程序崩溃 | 原子写保证旧 vault 不损坏；因变更即时保存，丢失窗口最多是当前这一次操作 |
 
 ## 10. 测试策略
 
