@@ -1,0 +1,16 @@
+# Vault data must never enter the repo
+*.vault
+*.bak1
+*.bak2
+*.bak3
+
+# Swift / Xcode
+.build/
+DerivedData/
+xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
+*.xcuserstate
+
+# macOS
+.DS_Store
