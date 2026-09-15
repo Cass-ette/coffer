@@ -57,7 +57,7 @@ public final class VaultFileStore {
 
     public func latestBackup() -> VaultFileEnvelope? {
         for i in 1...3 {
-            if let env = (try? readBackup(i)) ?? nil { return env }
+            if let env = try? readBackup(i) { return env }
         }
         return nil
     }
@@ -72,12 +72,12 @@ public final class VaultFileStore {
     public func write(_ envelope: VaultFileEnvelope) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let data = try Self.encoder.encode(envelope)
-        let tmp = directory.appendingPathComponent("vault.tmp")
+        let tmp = directory.appendingPathComponent("vault-\(UUID().uuidString).tmp")
         try data.write(to: tmp, options: .atomic)
 
         let fm = FileManager.default
         if fm.fileExists(atPath: vaultURL.path) {
-            try? fm.removeItem(at: bakURLs[2])               // 丢弃 bak3
+            if fm.fileExists(atPath: bakURLs[2].path) { try fm.removeItem(at: bakURLs[2]) }
             if fm.fileExists(atPath: bakURLs[1].path) { try fm.moveItem(at: bakURLs[1], to: bakURLs[2]) }
             if fm.fileExists(atPath: bakURLs[0].path) { try fm.moveItem(at: bakURLs[0], to: bakURLs[1]) }
             try fm.copyItem(at: vaultURL, to: bakURLs[0])    // 旧 vault → bak1
