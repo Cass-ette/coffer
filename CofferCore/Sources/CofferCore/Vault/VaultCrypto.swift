@@ -2,23 +2,34 @@ import Foundation
 import CryptoKit
 import CommonCrypto
 
+public enum CryptoError: Error, Equatable {
+    case randomGenerationFailed(OSStatus)
+    case emptyPassword
+    case keyDerivationFailed(OSStatus)
+    case sealFailed
+}
+
 public enum VaultCrypto {
     public static let pbkdf2Iterations = 600_000
     public static let saltLength = 16
 
-    public static func randomData(_ count: Int) -> Data {
+    public static func randomData(_ count: Int) throws -> Data {
         var data = Data(count: count)
         let status = data.withUnsafeMutableBytes { ptr -> OSStatus in
             guard let base = ptr.baseAddress else { return errSecParam }
             return SecRandomCopyBytes(kSecRandomDefault, count, base)
         }
-        precondition(status == errSecSuccess, "SecRandomCopyBytes failed: \(status)")
+        guard status == errSecSuccess else {
+            throw CryptoError.randomGenerationFailed(status)
+        }
         return data
     }
 
     public static func pbkdf2(password: String, salt: Data,
-                              iterations: Int = pbkdf2Iterations, length: Int = 32) -> Data {
-        precondition(!password.isEmpty, "主密码不能为空")
+                              iterations: Int = pbkdf2Iterations, length: Int = 32) throws -> Data {
+        guard !password.isEmpty else {
+            throw CryptoError.emptyPassword
+        }
         var derived = Data(repeating: 0, count: length)
         let pw = Data(password.utf8)
         let status = derived.withUnsafeMutableBytes { dPtr -> OSStatus in
@@ -35,7 +46,9 @@ public enum VaultCrypto {
                 }
             }
         }
-        precondition(status == kCCSuccess, "PBKDF2 failed: \(status)")
+        guard status == kCCSuccess else {
+            throw CryptoError.keyDerivationFailed(status)
+        }
         return derived
     }
 
@@ -46,7 +59,11 @@ public enum VaultCrypto {
     /// 用 KEK（主密码派生密钥）包装 DEK，产出 AES-GCM combined（nonce+ct+tag）
     public static func wrap(_ dek: SymmetricKey, with kek: Data) throws -> Data {
         let dekData = dek.withUnsafeBytes { Data($0) }
-        return try AES.GCM.seal(dekData, using: SymmetricKey(data: kek)).combined!
+        let sealed = try AES.GCM.seal(dekData, using: SymmetricKey(data: kek))
+        guard let combined = sealed.combined else {
+            throw CryptoError.sealFailed
+        }
+        return combined
     }
 
     public static func unwrap(_ wrapped: Data, with kek: Data) throws -> SymmetricKey {
@@ -55,7 +72,11 @@ public enum VaultCrypto {
     }
 
     public static func encrypt(_ plaintext: Data, with dek: SymmetricKey) throws -> Data {
-        try AES.GCM.seal(plaintext, using: dek).combined!
+        let sealed = try AES.GCM.seal(plaintext, using: dek)
+        guard let combined = sealed.combined else {
+            throw CryptoError.sealFailed
+        }
+        return combined
     }
 
     public static func decrypt(_ combined: Data, with dek: SymmetricKey) throws -> Data {
