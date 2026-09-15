@@ -126,11 +126,12 @@ login 与 totp 是**相互独立的条目**，不做外键关联；需要一起�
   "format": "coffer-vault", "version": 1,
   "kdf": { "algo": "PBKDF2-SHA256", "iterations": 600000, "salt": "…" },
   "wrappedDEK": "…",          // 主密码路径的包装结果
-  "nonce": "…",                // AES-256-GCM 96-bit nonce，每次保存随机
   "ciphertext": "…",          // AES-256-GCM(ciphertext + tag)
   "updatedAt": "…"
 }
 ```
+
+- 实现细化：ciphertext 采用 AES-GCM combined 格式（自带 nonce 与 tag），信封不单列 nonce 字段
 
 - 明文 payload 是一个 JSON（entries + groups + settings + schemaVersion），整库加密
 - **设置分两层**：加密层随 vault（自动锁定时长、剪贴板清空时长等安全偏好）；启动前层走 UserDefaults 不加密（全局快捷键、是否登录时启动）——快捷键必须在解锁前可读，否则冷启动到首次解锁之间浮窗无法呼出；"登录时启动"是成功标准 1（重启后任何应用里 ⌥Space 可用）的隐含前提，默认开启
