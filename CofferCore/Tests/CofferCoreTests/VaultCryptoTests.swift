@@ -63,6 +63,22 @@ final class VaultCryptoTests: XCTestCase {
         }
     }
 
+    func testInvalidIterationCountThrows() {
+        XCTAssertThrowsError(try VaultCrypto.pbkdf2(password: "test", salt: Data("salt".utf8), iterations: 0)) { error in
+            XCTAssertEqual(error as? CryptoError, .invalidIterationCount(0))
+        }
+        XCTAssertThrowsError(try VaultCrypto.pbkdf2(password: "test", salt: Data("salt".utf8), iterations: -1)) { error in
+            XCTAssertEqual(error as? CryptoError, .invalidIterationCount(-1))
+        }
+    }
+
+    func testEmptySaltHandled() throws {
+        // Empty salt should not crash but be handled by the implementation
+        // PBKDF2 spec allows empty salt (though not recommended)
+        let result = try VaultCrypto.pbkdf2(password: "test", salt: Data(), iterations: 100, length: 32)
+        XCTAssertEqual(result.count, 32)
+    }
+
     func testRandomDataSuccess() throws {
         let data = try VaultCrypto.randomData(32)
         XCTAssertEqual(data.count, 32)

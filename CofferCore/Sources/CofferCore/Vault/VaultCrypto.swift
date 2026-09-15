@@ -7,6 +7,8 @@ public enum CryptoError: Error, Equatable {
     case emptyPassword
     case keyDerivationFailed(OSStatus)
     case sealFailed
+    case invalidIterationCount(Int)
+    case invalidParameter
 }
 
 public enum VaultCrypto {
@@ -30,23 +32,65 @@ public enum VaultCrypto {
         guard !password.isEmpty else {
             throw CryptoError.emptyPassword
         }
+        guard iterations > 0 else {
+            throw CryptoError.invalidIterationCount(iterations)
+        }
+
         var derived = Data(repeating: 0, count: length)
-        let pw = Data(password.utf8)
-        let status = derived.withUnsafeMutableBytes { dPtr -> OSStatus in
+
+        // Use utf8.withContiguousStorageIfAvailable to avoid allocating intermediate Data for password
+        // This reduces the window where password bytes persist in memory
+        let status: OSStatus = derived.withUnsafeMutableBytes { dPtr -> OSStatus in
             salt.withUnsafeBytes { sPtr -> OSStatus in
-                pw.withUnsafeBytes { pPtr -> OSStatus in
-                    CCKeyDerivationPBKDF(
+                password.utf8.withContiguousStorageIfAvailable { pBuffer -> OSStatus in
+                    guard let derivedBase = dPtr.bindMemory(to: UInt8.self).baseAddress else {
+                        return OSStatus(errSecParam)
+                    }
+                    guard let saltBase = sPtr.bindMemory(to: UInt8.self).baseAddress else {
+                        return OSStatus(errSecParam)
+                    }
+                    guard let pwBase = pBuffer.baseAddress else {
+                        return OSStatus(errSecParam)
+                    }
+                    return CCKeyDerivationPBKDF(
                         CCPBKDFAlgorithm(kCCPBKDF2),
-                        pPtr.bindMemory(to: Int8.self).baseAddress!, pw.count,
-                        sPtr.bindMemory(to: UInt8.self).baseAddress!, salt.count,
+                        pwBase, pBuffer.count,
+                        saltBase, salt.count,
                         CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
-                        UInt32(max(iterations, 1)),
-                        dPtr.bindMemory(to: UInt8.self).baseAddress!, length
+                        UInt32(iterations),
+                        derivedBase, length
                     )
-                }
+                } ?? {
+                    // Fallback for non-contiguous UTF-8 (rare edge case: grapheme clusters, extended characters)
+                    // Note: This allocates Data temporarily; password bytes may persist in memory until GC
+                    let pw = Data(password.utf8)
+                    return pw.withUnsafeBytes { pPtr -> OSStatus in
+                        guard let derivedBase = dPtr.bindMemory(to: UInt8.self).baseAddress else {
+                            return OSStatus(errSecParam)
+                        }
+                        guard let saltBase = sPtr.bindMemory(to: UInt8.self).baseAddress else {
+                            return OSStatus(errSecParam)
+                        }
+                        guard let pwBase = pPtr.bindMemory(to: Int8.self).baseAddress else {
+                            return OSStatus(errSecParam)
+                        }
+                        return CCKeyDerivationPBKDF(
+                            CCPBKDFAlgorithm(kCCPBKDF2),
+                            pwBase, pw.count,
+                            saltBase, salt.count,
+                            CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
+                            UInt32(iterations),
+                            derivedBase, length
+                        )
+                    }
+                }()
             }
         }
+
         guard status == kCCSuccess else {
+            if status == OSStatus(errSecParam) {
+                throw CryptoError.invalidParameter
+            }
             throw CryptoError.keyDerivationFailed(status)
         }
         return derived
