@@ -12,5 +12,8 @@ xcuserdata/
 *.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
 *.xcuserstate
 
+# XcodeGen output
+Coffer.xcodeproj/
+
 # macOS
 .DS_Store
