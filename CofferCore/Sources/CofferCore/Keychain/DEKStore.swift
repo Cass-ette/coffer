@@ -52,10 +52,11 @@ public final class SystemDEKStore: DEKStoring, Sendable {
         _ = try? delete()
 
         // Create access control with userPresence requirement
+        // Use .biometryAny to allow storage without immediate auth, require auth on retrieval
         guard let access = SecAccessControlCreateWithFlags(
             kCFAllocatorDefault,
             kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-            .userPresence,
+            [.biometryAny, .or, .devicePasscode],
             nil
         ) else {
             throw DEKStoreError.unexpectedStatus(errSecParam)
