@@ -124,6 +124,7 @@ struct ChangeMasterPasswordSheet: View {
     @State private var current = ""
     @State private var new = ""
     @State private var confirm = ""
+    // 不能叫 error：catch 块里的隐式 error 常量会遮蔽同名属性导致编译错误
     @State private var errorMessage: String?
 
     var body: some View {
