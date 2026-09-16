@@ -29,10 +29,15 @@ final class LockCoordinator {
     /// 间隔变化时调用；0 = 停止闲置轮询
     func updatePolicy(autoLockSeconds: Int) {
         policy = LockPolicy(autoLockSeconds: autoLockSeconds)
-        if pollTimer != nil, autoLockSeconds <= 0 {
-            pollTimer?.invalidate()
+
+        // 停止现有 timer（如果有）
+        if let existing = pollTimer {
+            existing.invalidate()
             pollTimer = nil
-        } else if pollTimer == nil, autoLockSeconds > 0 {
+        }
+
+        // 如果启用自动锁定，启动新 timer
+        if autoLockSeconds > 0 {
             pollTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
                 Task { @MainActor in
                     guard let self else { return }
