@@ -14,11 +14,8 @@ struct MainView: View {
     @State private var selection: Entry.ID?
     @State private var query = ""
 
-    private var index: SearchIndex {
-        SearchIndex(entries: unlock.document?.entries ?? [])
-    }
-
     private var visibleEntries: [Entry] {
+        let index = SearchIndex(entries: unlock.document?.entries ?? [])
         guard let section else { return index.search(query: query) }
         switch section {
         case .all: return index.search(query: query)
