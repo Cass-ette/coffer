@@ -1,21 +1,22 @@
 import Foundation
 import Security
 import LocalAuthentication
+import CryptoKit
 
 // MARK: - Protocol
 
 /// Storage interface for Data Encryption Key with biometric protection
 public protocol DEKStoring: AnyObject, Sendable {
     /// Store DEK with userPresence ACL (biometric/passcode required to read)
-    func store(_ dek: Data) throws
+    func store(_ dek: SymmetricKey) throws
 
     /// Retrieve DEK using an already-authenticated LAContext
     /// - Parameter context: LAContext with interactionNotAllowed=true (must be pre-authenticated)
-    /// - Returns: DEK data, or nil if not found / auth failed / user canceled
-    func retrieve(using context: LAContext) throws -> Data?
+    /// - Returns: DEK, or nil if not found / auth failed / user canceled
+    func retrieve(using context: LAContext) throws -> SymmetricKey?
 
     /// Check if a DEK exists in storage
-    func contains() throws -> Bool
+    func contains() -> Bool
 
     /// Delete stored DEK (idempotent: no error if already absent)
     func delete() throws
@@ -23,8 +24,15 @@ public protocol DEKStoring: AnyObject, Sendable {
 
 // MARK: - Error
 
-public enum DEKStoreError: Error, Sendable {
+public enum DEKStoreError: LocalizedError, Sendable {
     case unexpectedStatus(OSStatus)
+
+    public var errorDescription: String? {
+        switch self {
+        case .unexpectedStatus(let status):
+            return "Keychain operation failed with status \(status)"
+        }
+    }
 }
 
 // MARK: - System Implementation
@@ -39,7 +47,7 @@ public final class SystemDEKStore: DEKStoring, Sendable {
         self.account = account
     }
 
-    public func store(_ dek: Data) throws {
+    public func store(_ dek: SymmetricKey) throws {
         // Delete any existing entry first
         _ = try? delete()
 
@@ -53,12 +61,15 @@ public final class SystemDEKStore: DEKStoring, Sendable {
             throw DEKStoreError.unexpectedStatus(errSecParam)
         }
 
+        // Convert SymmetricKey to Data for Keychain storage
+        let dekData = dek.withUnsafeBytes { Data($0) }
+
         // Store with ACL
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
-            kSecValueData as String: dek,
+            kSecValueData as String: dekData,
             kSecAttrAccessControl as String: access
         ]
 
@@ -68,7 +79,7 @@ public final class SystemDEKStore: DEKStoring, Sendable {
         }
     }
 
-    public func retrieve(using context: LAContext) throws -> Data? {
+    public func retrieve(using context: LAContext) throws -> SymmetricKey? {
         // Use LAContext with interactionNotAllowed=true (already authenticated)
         context.interactionNotAllowed = true
 
@@ -86,7 +97,8 @@ public final class SystemDEKStore: DEKStoring, Sendable {
         // Expected "not found" or "auth failed" cases return nil
         switch status {
         case errSecSuccess:
-            return result as? Data
+            guard let data = result as? Data else { return nil }
+            return SymmetricKey(data: data)
         case errSecItemNotFound,
              errSecAuthFailed,
              errSecUserCanceled,
@@ -98,7 +110,7 @@ public final class SystemDEKStore: DEKStoring, Sendable {
         }
     }
 
-    public func contains() throws -> Bool {
+    public func contains() -> Bool {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -112,7 +124,8 @@ public final class SystemDEKStore: DEKStoring, Sendable {
         case errSecItemNotFound:
             return false
         default:
-            throw DEKStoreError.unexpectedStatus(status)
+            // Unexpected status treated as "not found" (non-throwing)
+            return false
         }
     }
 
