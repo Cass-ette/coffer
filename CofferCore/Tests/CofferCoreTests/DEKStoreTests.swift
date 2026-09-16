@@ -86,38 +86,38 @@ final class DEKStoreTests: XCTestCase {
 
 /// Fake in-memory DEKStore for testing UnlockService logic
 final class FakeDEKStore: DEKStoring, @unchecked Sendable {
-    private var storage: SymmetricKey?
+    var stored: SymmetricKey?
     private let lock = NSLock()
     var willReject = false
 
     func store(_ dek: SymmetricKey) throws {
         lock.lock()
         defer { lock.unlock() }
-        storage = dek
+        stored = dek
     }
 
     func retrieve(using context: LAContext) throws -> SymmetricKey? {
         lock.lock()
         defer { lock.unlock() }
-        return willReject ? nil : storage
+        return willReject ? nil : stored
     }
 
     func contains() -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        return storage != nil
+        return stored != nil
     }
 
     func delete() throws {
         lock.lock()
         defer { lock.unlock() }
-        storage = nil
+        stored = nil
     }
 
     /// Test-only: peek at stored DEK without LAContext
     func peek() -> SymmetricKey? {
         lock.lock()
         defer { lock.unlock() }
-        return storage
+        return stored
     }
 }
