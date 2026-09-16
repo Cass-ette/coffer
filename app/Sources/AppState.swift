@@ -42,4 +42,22 @@ final class AppState: ObservableObject {
         unlock.lock()
         phase = .locked
     }
+
+    func upsert(_ entry: Entry) throws {
+        guard var doc = unlock.document else { return }
+        if let i = doc.entries.firstIndex(where: { $0.id == entry.id }) {
+            doc.entries[i] = entry
+        } else {
+            doc.entries.append(entry)
+        }
+        unlock.document = doc
+        try unlock.persist()
+    }
+
+    func delete(_ id: UUID) throws {
+        guard var doc = unlock.document else { return }
+        doc.entries.removeAll { $0.id == id }
+        unlock.document = doc
+        try unlock.persist()
+    }
 }

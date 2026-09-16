@@ -3,8 +3,11 @@ import CofferCore
 
 struct EntryDetailView: View {
     let entry: Entry
+    @EnvironmentObject var app: AppState
     @EnvironmentObject var unlock: UnlockService
     @State private var revealed = Set<String>()
+    @State private var editing = false
+    @State private var confirmDelete = false
 
     var body: some View {
         ScrollView {
@@ -32,6 +35,25 @@ struct EntryDetailView: View {
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .toolbar {
+            ToolbarItemGroup {
+                Button("编辑") { editing = true }
+                Button(role: .destructive) { confirmDelete = true } label: {
+                    Label("删除", systemImage: "trash")
+                }
+            }
+        }
+        .sheet(isPresented: $editing) {
+            EntryEditorView(editing: entry)
+                .environmentObject(app)
+                .environmentObject(unlock)
+        }
+        .confirmationDialog("删除「\(entry.title)」？", isPresented: $confirmDelete,
+                            titleVisibility: .visible) {
+            Button("删除", role: .destructive) {
+                try? app.delete(entry.id)
+            }
         }
     }
 

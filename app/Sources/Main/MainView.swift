@@ -7,12 +7,18 @@ enum SidebarSection: Hashable {
     case tag(String)
 }
 
+struct EditorTarget: Identifiable {
+    let id = UUID()
+    let entry: Entry?
+}
+
 struct MainView: View {
     @EnvironmentObject var app: AppState
     @EnvironmentObject var unlock: UnlockService
     @State private var section: SidebarSection? = .all
     @State private var selection: Entry.ID?
     @State private var query = ""
+    @State private var editorTarget: EditorTarget?
 
     private var visibleEntries: [Entry] {
         let index = SearchIndex(entries: unlock.document?.entries ?? [])
@@ -45,11 +51,23 @@ struct MainView: View {
         .toolbar {
             ToolbarItem {
                 Button {
+                    editorTarget = EditorTarget(entry: nil)
+                } label: {
+                    Label("新建条目", systemImage: "plus")
+                }
+            }
+            ToolbarItem {
+                Button {
                     app.didLock()
                 } label: {
                     Label("锁定", systemImage: "lock.fill")
                 }
             }
+        }
+        .sheet(item: $editorTarget) { target in
+            EntryEditorView(editing: target.entry)
+                .environmentObject(app)
+                .environmentObject(unlock)
         }
     }
 }
