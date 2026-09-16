@@ -109,13 +109,24 @@ struct EntryEditorView: View {
             typeSpecific
 
             Section("自定义字段") {
-                ForEach(customFields.indices, id: \.self) { i in
+                ForEach(Array(customFields.enumerated()), id: \.offset) { index, field in
                     HStack {
-                        TextField("名称", text: $customFields[i].name)
-                        TextField("值", text: $customFields[i].value)
-                        Toggle("敏感", isOn: $customFields[i].isSensitive).toggleStyle(.checkbox)
+                        TextField("名称", text: Binding(
+                            get: { customFields[index].name },
+                            set: { customFields[index].name = $0 }
+                        ))
+                        TextField("值", text: Binding(
+                            get: { customFields[index].value },
+                            set: { customFields[index].value = $0 }
+                        ))
+                        Toggle("敏感", isOn: Binding(
+                            get: { customFields[index].isSensitive },
+                            set: { customFields[index].isSensitive = $0 }
+                        )).toggleStyle(.checkbox)
                         Button(role: .destructive) {
-                            _ = customFields.remove(at: i)
+                            if index < customFields.count {
+                                customFields.remove(at: index)
+                            }
                         } label: { Image(systemName: "minus.circle") }
                         .buttonStyle(.borderless)
                     }
@@ -212,13 +223,15 @@ struct EntryEditorView: View {
             Section("安全笔记") {
                 TextField("正文（纯文本）", text: $noteBody, axis: .vertical)
                     .lineLimit(6...16)
-                ForEach(attachments, id: \.fileName) { att in
+                ForEach(Array(attachments.enumerated()), id: \.offset) { index, att in
                     HStack {
                         Image(systemName: "paperclip")
                         Text(att.fileName)
                         Spacer()
                         Button(role: .destructive) {
-                            attachments.removeAll { $0.fileName == att.fileName }
+                            if index < attachments.count {
+                                attachments.remove(at: index)
+                            }
                         } label: { Image(systemName: "minus.circle") }
                         .buttonStyle(.borderless)
                     }
