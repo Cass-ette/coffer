@@ -14,7 +14,7 @@ final class AppState: ObservableObject {
     @Published var phase: Phase
     let unlock: UnlockService
     let settings = AppSettings.shared
-    private(set) var hotkeyRegistered = false
+    @Published private(set) var hotkeyRegistered = false
     private lazy var lockCoordinator = LockCoordinator { [weak self] in
         self?.didLock()
     }
@@ -48,9 +48,7 @@ final class AppState: ObservableObject {
             guard let self else { return }
             QuickPanelController.shared.toggle(app: self)
         }
-        hotkeyRegistered = HotkeyCenter.shared.register(
-            keyCode: settings.hotkey.keyCode,
-            modifiers: settings.hotkey.modifiers)
+        reRegisterHotkey()
 
         phaseSink = $phase
             .receive(on: RunLoop.main)
@@ -95,5 +93,14 @@ final class AppState: ObservableObject {
         guard phase == .unlocked else { return }
         lockCoordinator.updatePolicy(
             autoLockSeconds: unlock.document?.settings.autoLockSeconds ?? 300)
+    }
+
+    /// 换键后重注册；返回 false = 被其他应用占用（如 Raycast），设置页提示换键
+    @discardableResult
+    func reRegisterHotkey() -> Bool {
+        hotkeyRegistered = HotkeyCenter.shared.register(
+            keyCode: settings.hotkey.keyCode,
+            modifiers: settings.hotkey.modifiers)
+        return hotkeyRegistered
     }
 }
