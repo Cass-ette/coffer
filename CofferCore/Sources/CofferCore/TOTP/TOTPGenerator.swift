@@ -1,15 +1,22 @@
 import Foundation
 import CryptoKit
 
-public enum TOTPError: LocalizedError, Sendable {
+public enum TOTPError: LocalizedError, Sendable, Equatable {
     case invalidBase32Character(Character)
     case invalidOTPAuthURI
     case missingSecret
+    case secretTooShort(Int)
+    case invalidDigits(Int)
+    case invalidPeriod(Int)
+
     public var errorDescription: String? {
         switch self {
         case .invalidBase32Character(let c): return "非法 Base32 字符: \(c)"
         case .invalidOTPAuthURI: return "不是合法的 otpauth:// URI"
         case .missingSecret: return "缺少 secret"
+        case .secretTooShort(let len): return "secret 长度不足 (\(len) 字节，建议 ≥16)"
+        case .invalidDigits(let d): return "digits 必须在 1-9 范围内 (当前: \(d))"
+        case .invalidPeriod(let p): return "period 必须 > 0 (当前: \(p))"
         }
     }
 }
@@ -23,6 +30,10 @@ public struct TOTPConfig: Hashable, Sendable {
     public var algorithm: TOTPAlgorithm
     public var digits: Int
     public var period: Int
+
+    /// Create a TOTP configuration.
+    /// - Warning: This initializer does NOT validate parameters. Use `OTPAuthParser.parse()` for safe parsing of otpauth:// URIs.
+    ///   Callers must ensure: `digits` ∈ [1,9], `period` > 0, `secret.count` ≥ 16 to prevent crashes.
     public init(secret: Data, algorithm: TOTPAlgorithm, digits: Int, period: Int) {
         self.secret = secret; self.algorithm = algorithm; self.digits = digits; self.period = period
     }
@@ -102,9 +113,26 @@ public enum OTPAuthParser {
         guard let secretStr = param("secret"), let secret = try? Base32.decode(secretStr), !secret.isEmpty else {
             throw TOTPError.missingSecret
         }
+
+        // Validate secret length (RFC 4226 recommends ≥128 bits / 16 bytes)
+        guard secret.count >= 16 else {
+            throw TOTPError.secretTooShort(secret.count)
+        }
+
         let algo = TOTPAlgorithm(rawValue: (param("algorithm") ?? "SHA1").uppercased()) ?? .SHA1
         let digits = Int(param("digits") ?? "") ?? 6
         let period = Int(param("period") ?? "") ?? 30
+
+        // Validate digits (1-9 to prevent UInt32 overflow: 10^10 > UInt32.max)
+        guard (1...9).contains(digits) else {
+            throw TOTPError.invalidDigits(digits)
+        }
+
+        // Validate period (must be > 0 to prevent division by zero)
+        guard period > 0 else {
+            throw TOTPError.invalidPeriod(period)
+        }
+
         return TOTPConfig(secret: secret, algorithm: algo, digits: digits, period: period)
     }
 }
