@@ -1,9 +1,10 @@
 import SwiftUI
+import Combine
 import CofferCore
 
 @MainActor
 final class AppState: ObservableObject {
-    enum Phase {
+    enum Phase: Equatable {
         case firstRun
         case corrupted(hasBackup: Bool)
         case locked
@@ -14,6 +15,10 @@ final class AppState: ObservableObject {
     let unlock: UnlockService
     let settings = AppSettings.shared
     private(set) var hotkeyRegistered = false
+    private lazy var lockCoordinator = LockCoordinator { [weak self] in
+        self?.didLock()
+    }
+    private var phaseSink: AnyCancellable?
 
     init() {
         let vaultDir = FileManager.default
@@ -46,6 +51,20 @@ final class AppState: ObservableObject {
         hotkeyRegistered = HotkeyCenter.shared.register(
             keyCode: settings.hotkey.keyCode,
             modifiers: settings.hotkey.modifiers)
+
+        phaseSink = $phase
+            .receive(on: RunLoop.main)
+            .sink { [weak self] phase in
+                guard let self else { return }
+                if phase == .unlocked {
+                    self.lockCoordinator.startEventObservers()
+                    self.lockCoordinator.updatePolicy(
+                        autoLockSeconds: self.unlock.document?.settings.autoLockSeconds ?? 300)
+                } else {
+                    self.lockCoordinator.stopEventObservers()
+                    self.lockCoordinator.updatePolicy(autoLockSeconds: 0)
+                }
+            }
     }
 
     func didLock() {
@@ -69,5 +88,12 @@ final class AppState: ObservableObject {
         doc.entries.removeAll { $0.id == id }
         unlock.document = doc
         try unlock.persist()
+    }
+
+    /// 设置变更后刷新锁定策略；仅解锁态有效
+    func refreshLockPolicy() {
+        guard phase == .unlocked else { return }
+        lockCoordinator.updatePolicy(
+            autoLockSeconds: unlock.document?.settings.autoLockSeconds ?? 300)
     }
 }
