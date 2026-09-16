@@ -6,6 +6,7 @@ final class HotkeyCenter {
     var handler: (() -> Void)?
     private var hotKeyRef: EventHotKeyRef?
     private var handlerRef: EventHandlerRef?
+    private var eventCallback: EventHandlerUPP?
 
     @discardableResult
     func register(keyCode: UInt32, modifiers: [AppSettings.HotkeyModifier]) -> Bool {
@@ -38,6 +39,8 @@ final class HotkeyCenter {
             center.handler?()
             return noErr
         }
+        self.eventCallback = callback
+
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
                                  eventKind: UInt32(kEventHotKeyPressed))
         let installStatus = InstallEventHandler(
@@ -55,5 +58,6 @@ final class HotkeyCenter {
             UnregisterEventHotKey(hotKeyRef)
             self.hotKeyRef = nil
         }
+        self.eventCallback = nil
     }
 }

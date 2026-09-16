@@ -33,7 +33,7 @@ enum CopyTargets {
             guard let secret = try? Base32.decode(p.secretBase32) else { return [] }
             let cfg = TOTPConfig(secret: secret,
                                  algorithm: TOTPAlgorithm(rawValue: p.algorithm) ?? .SHA1,
-                                 digits: p.digits, period: p.period)
+                                 digits: p.digits, period: max(p.period, 1))
             return [CopyTarget(label: "验证码",
                                value: TOTPGenerator(config: cfg).code(at: date)),
                     CopyTarget(label: "种子", value: p.secretBase32)]

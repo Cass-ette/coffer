@@ -12,7 +12,10 @@ final class QuickPanelController: ObservableObject {
             hide()
             return
         }
-        guard case .unlocked = app.phase else {
+        switch app.phase {
+        case .unlocked:
+            present(app: app)
+        case .locked:
             Task { @MainActor in
                 let result = await app.unlock.unlockWithBiometrics()
                 if case .unlocked = result {
@@ -20,9 +23,9 @@ final class QuickPanelController: ObservableObject {
                     present(app: app)
                 }
             }
+        case .firstRun, .corrupted:
             return
         }
-        present(app: app)
     }
 
     private func present(app: AppState) {
