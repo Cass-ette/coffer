@@ -25,6 +25,7 @@ targets:
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: ""
         ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_ENTITLEMENTS: app/Resources/Coffer.entitlements
     info:
       path: app/Info.plist
       properties:
