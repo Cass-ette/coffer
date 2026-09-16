@@ -63,20 +63,20 @@ public struct SearchIndex: Sendable {
 
         // Title (weight 100)
         if let s = FuzzyMatch.score(query: query, in: entry.title) {
-            maxScore = max(maxScore, s * 100 / 100)
+            maxScore = max(maxScore, s * 100)
         }
 
         // Tags (weight 80)
         for tag in entry.tags {
             if let s = FuzzyMatch.score(query: query, in: tag) {
-                maxScore = max(maxScore, s * 80 / 100)
+                maxScore = max(maxScore, s * 80)
             }
         }
 
         // Subtitle (weight 50)
         if !entry.subtitle.isEmpty {
             if let s = FuzzyMatch.score(query: query, in: entry.subtitle) {
-                maxScore = max(maxScore, s * 50 / 100)
+                maxScore = max(maxScore, s * 50)
             }
         }
 
@@ -85,24 +85,24 @@ public struct SearchIndex: Sendable {
         case .login(let payload):
             for url in payload.urls {
                 if let s = FuzzyMatch.score(query: query, in: url) {
-                    maxScore = max(maxScore, s * 60 / 100)
+                    maxScore = max(maxScore, s * 60)
                 }
             }
         case .access(let payload):
             for address in payload.addresses {
                 if let s = FuzzyMatch.score(query: query, in: address) {
-                    maxScore = max(maxScore, s * 60 / 100)
+                    maxScore = max(maxScore, s * 60)
                 }
             }
         case .apiKey(let payload):
             // Provider name only (secret is sensitive)
             if let s = FuzzyMatch.score(query: query, in: payload.provider) {
-                maxScore = max(maxScore, s * 40 / 100)
+                maxScore = max(maxScore, s * 40)
             }
         case .sshKey(let payload):
             // Host only (user and privateKey are not searchable per spec)
             if let s = FuzzyMatch.score(query: query, in: payload.host) {
-                maxScore = max(maxScore, s * 40 / 100)
+                maxScore = max(maxScore, s * 40)
             }
         case .totp, .secureNote:
             // No searchable non-sensitive fields in payload
@@ -113,18 +113,18 @@ public struct SearchIndex: Sendable {
         for field in entry.customFields where !field.isSensitive {
             // Field name
             if let s = FuzzyMatch.score(query: query, in: field.name) {
-                maxScore = max(maxScore, s * 20 / 100)
+                maxScore = max(maxScore, s * 20)
             }
             // Field value
             if let s = FuzzyMatch.score(query: query, in: field.value) {
-                maxScore = max(maxScore, s * 20 / 100)
+                maxScore = max(maxScore, s * 20)
             }
         }
 
-        // Permission note (weight 25, lowest)
+        // Permission note (weight 25)
         if !entry.permissionNote.isEmpty {
             if let s = FuzzyMatch.score(query: query, in: entry.permissionNote) {
-                maxScore = max(maxScore, s * 25 / 100)
+                maxScore = max(maxScore, s * 25)
             }
         }
 
