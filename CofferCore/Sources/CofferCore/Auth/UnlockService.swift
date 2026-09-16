@@ -97,7 +97,7 @@ public final class UnlockService: ObservableObject {
     /// Keychain 里的 DEK 不动——DEK 从不随保存/备份变化，恢复后指纹解锁依旧可用。
     @discardableResult
     public func restoreFromLatestBackup() -> Bool {
-        guard let backup = vaultStore.fileStore.latestBackup() else { return false }
+        guard vaultStore.fileStore.latestBackup() != nil else { return false }
         do {
             try vaultStore.fileStore.restoreFromBackup(1)
             loadEnvelope()
@@ -146,11 +146,14 @@ public final class UnlockService: ObservableObject {
     }
 
     private func finishUnlock(dek: SymmetricKey) throws -> UnlockResult {
-        loadEnvelope()
-        guard let env = envelope else { return .failed("vault 不存在") }
-        self.dek = dek
-        document = try vaultStore.document(from: env, dek: dek)
-        isUnlocked = true
-        return .unlocked
+        guard let env = envelope else { return .failed("vault 未加载") }
+        do {
+            document = try vaultStore.document(from: env, dek: dek)
+            self.dek = dek
+            isUnlocked = true
+            return .unlocked
+        } catch {
+            return .failed("vault 解密失败：文件可能损坏")
+        }
     }
 }

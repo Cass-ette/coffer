@@ -110,6 +110,78 @@ final class UnlockServiceTests: XCTestCase {
         XCTAssertEqual(service.unlockWithMasterPassword("old"), .wrongPassword)
         XCTAssertEqual(service.unlockWithMasterPassword("new"), .unlocked)
     }
+
+    func testRestoreFromLatestBackup() throws {
+        // Create vault and add an entry
+        try service.createVault(masterPassword: "pw-123456")
+        let now = Date()
+        var doc = service.document!
+        doc.entries.append(Entry(
+            id: UUID(),
+            type: .login,
+            title: "Original",
+            subtitle: "",
+            groupID: nil,
+            tags: [],
+            isFavorite: false,
+            permissionNote: "",
+            customFields: [],
+            createdAt: now,
+            updatedAt: now,
+            payload: .login(LoginPayload(username: "user1", password: "pass1", urls: []))
+        ))
+        service.document = doc
+        try service.persist()
+
+        // Add another entry (this will create a backup of the previous state)
+        doc.entries.append(Entry(
+            id: UUID(),
+            type: .login,
+            title: "Second",
+            subtitle: "",
+            groupID: nil,
+            tags: [],
+            isFavorite: false,
+            permissionNote: "",
+            customFields: [],
+            createdAt: now,
+            updatedAt: now,
+            payload: .login(LoginPayload(username: "user2", password: "pass2", urls: []))
+        ))
+        service.document = doc
+        try service.persist()
+
+        // Verify we have 2 entries
+        XCTAssertEqual(service.document?.entries.count, 2)
+
+        // Restore from backup (should restore state with 1 entry)
+        XCTAssertTrue(service.restoreFromLatestBackup())
+
+        // Unlock and verify we're back to 1 entry
+        service.lock()
+        XCTAssertEqual(service.unlockWithMasterPassword("pw-123456"), .unlocked)
+        XCTAssertEqual(service.document?.entries.count, 1)
+        XCTAssertEqual(service.document?.entries.first?.title, "Original")
+    }
+
+    func testDiscardVaultAndBackups() throws {
+        // Create vault
+        try service.createVault(masterPassword: "pw-123456")
+        XCTAssertTrue(service.isUnlocked)
+        XCTAssertNotNil(dekStore.stored)
+
+        // Discard everything
+        service.discardVaultAndBackups()
+
+        // Verify state is cleared
+        XCTAssertFalse(service.isUnlocked)
+        XCTAssertNil(service.document)
+        XCTAssertNil(service.envelope)
+        XCTAssertNil(dekStore.stored)
+
+        // Verify probe shows firstRun
+        XCTAssertEqual(service.probe(), .firstRun)
+    }
 }
 
 final class FakePrompt: BiometryPrompting {
