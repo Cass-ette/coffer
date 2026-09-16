@@ -3,32 +3,32 @@ import XCTest
 
 final class FuzzyMatchTests: XCTestCase {
     func testEmptyQueryScoresZero() {
-        XCTAssertNil(FuzzyMatch.score(query: "", target: "anything"))
+        XCTAssertEqual(FuzzyMatch.score(query: "", in: "anything"), 0)
     }
 
     func testSubstringBeatsSubsequence() {
-        let substring = FuzzyMatch.score(query: "pass", target: "password")
-        let subsequence = FuzzyMatch.score(query: "pass", target: "PineApple StreetS")
+        let substring = FuzzyMatch.score(query: "pass", in: "password")
+        let subsequence = FuzzyMatch.score(query: "pass", in: "PineApple StreetS")
         XCTAssertNotNil(substring)
         XCTAssertNotNil(subsequence)
         XCTAssertGreaterThan(substring!, subsequence!)
     }
 
     func testContiguousBeatsScattered() {
-        let contiguous = FuzzyMatch.score(query: "abc", target: "xabcy")
-        let scattered = FuzzyMatch.score(query: "abc", target: "axbxcx")
+        let contiguous = FuzzyMatch.score(query: "abc", in: "xabcy")
+        let scattered = FuzzyMatch.score(query: "abc", in: "axbxcx")
         XCTAssertNotNil(contiguous)
         XCTAssertNotNil(scattered)
         XCTAssertGreaterThan(contiguous!, scattered!)
     }
 
     func testNoMatchReturnsNil() {
-        XCTAssertNil(FuzzyMatch.score(query: "xyz", target: "abcdef"))
+        XCTAssertNil(FuzzyMatch.score(query: "xyz", in: "abcdef"))
     }
 
     func testCaseInsensitive() {
-        let lower = FuzzyMatch.score(query: "test", target: "TestString")
-        let upper = FuzzyMatch.score(query: "TEST", target: "teststring")
+        let lower = FuzzyMatch.score(query: "test", in: "TestString")
+        let upper = FuzzyMatch.score(query: "TEST", in: "teststring")
         XCTAssertNotNil(lower)
         XCTAssertNotNil(upper)
         XCTAssertEqual(lower, upper)
@@ -96,8 +96,9 @@ final class SearchIndexTests: XCTestCase {
 
         let results = index.search(query: "match")
         XCTAssertEqual(results.count, 2)
-        XCTAssertEqual(results[0].title, "a")
-        XCTAssertEqual(results[1].title, "b")
+        // permissionNote weight (25) > customField weight (20), so "b" ranks higher
+        XCTAssertEqual(results[0].title, "b")
+        XCTAssertEqual(results[1].title, "a")
     }
 
     func testGroupTagFiltersComposeWithQuery() {
@@ -119,7 +120,7 @@ final class SearchIndexTests: XCTestCase {
         ]
         let index = SearchIndex(entries: entries)
 
-        let results = index.search(query: "github", groupID: group1, tags: ["dev"])
+        let results = index.search(query: "github", groupID: group1, tag: "dev")
         XCTAssertEqual(results.count, 1)
         XCTAssertEqual(results[0].title, "github work")
     }
