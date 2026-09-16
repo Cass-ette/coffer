@@ -15,10 +15,7 @@ struct LockScreenView: View {
     @State private var password = ""
     @State private var errorMessage: String?
     @State private var showError = false
-
-    private var biometricsAvailable: Bool {
-        LAContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
-    }
+    @State private var biometricsAvailable = false
 
     var body: some View {
         VStack(spacing: 24) {
@@ -37,6 +34,9 @@ struct LockScreenView: View {
         }
         .padding()
         .frame(minWidth: 400, minHeight: 300)
+        .task {
+            biometricsAvailable = LAContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
+        }
         .alert("Unlock Failed", isPresented: $showError) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -99,25 +99,36 @@ struct LockScreenView: View {
 
     private func unlockWithBiometrics() {
         Task {
-            do {
-                try await unlock.unlockWithBiometrics()
-            } catch {
-                errorMessage = error.localizedDescription
+            let result = await unlock.unlockWithBiometrics()
+            switch result {
+            case .unlocked:
+                app.phase = .unlocked
+            case .cancelled, .needMasterPassword:
+                mode = .password
+            case .failed(let msg):
+                errorMessage = msg
                 showError = true
+            case .wrongPassword:
+                break
             }
         }
     }
 
     private func unlockWithPassword() {
-        Task {
-            do {
-                try await unlock.unlockWithMasterPassword(password)
-                password = ""
-                errorMessage = nil
-            } catch {
-                errorMessage = "Incorrect password"
-                password = ""
-            }
+        let result = unlock.unlockWithMasterPassword(password)
+        switch result {
+        case .unlocked:
+            app.phase = .unlocked
+            password = ""
+            errorMessage = nil
+        case .wrongPassword:
+            errorMessage = "Incorrect password"
+            password = ""
+        case .failed(let msg):
+            errorMessage = msg
+            password = ""
+        case .cancelled, .needMasterPassword:
+            break
         }
     }
 }
