@@ -12,6 +12,8 @@ final class AppState: ObservableObject {
 
     @Published var phase: Phase
     let unlock: UnlockService
+    let settings = AppSettings.shared
+    private(set) var hotkeyRegistered = false
 
     init() {
         let vaultDir = FileManager.default
@@ -36,6 +38,14 @@ final class AppState: ObservableObject {
             unlock.loadEnvelope()
             self.phase = .corrupted(hasBackup: hasBackup)
         }
+
+        HotkeyCenter.shared.handler = { [weak self] in
+            guard let self else { return }
+            QuickPanelController.shared.toggle(app: self)
+        }
+        hotkeyRegistered = HotkeyCenter.shared.register(
+            keyCode: settings.hotkey.keyCode,
+            modifiers: settings.hotkey.modifiers)
     }
 
     func didLock() {
