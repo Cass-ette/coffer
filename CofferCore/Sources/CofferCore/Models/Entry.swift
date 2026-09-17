@@ -124,7 +124,7 @@ public struct Entry: Codable, Hashable, Identifiable, Sendable {
     public var type: EntryType
     public var title: String
     public var subtitle: String
-    public var groupID: UUID?
+    public var groupIDs: [UUID]
     public var tags: [String]
     public var isFavorite: Bool
     public var permissionNote: String
@@ -134,11 +134,58 @@ public struct Entry: Codable, Hashable, Identifiable, Sendable {
     public var payload: EntryPayload
 
     public init(id: UUID = UUID(), type: EntryType, title: String, subtitle: String,
-                groupID: UUID?, tags: [String], isFavorite: Bool, permissionNote: String,
+                groupIDs: [UUID], tags: [String], isFavorite: Bool, permissionNote: String,
                 customFields: [CustomField], createdAt: Date, updatedAt: Date, payload: EntryPayload) {
         self.id = id; self.type = type; self.title = title; self.subtitle = subtitle
-        self.groupID = groupID; self.tags = tags; self.isFavorite = isFavorite
+        self.groupIDs = groupIDs; self.tags = tags; self.isFavorite = isFavorite
         self.permissionNote = permissionNote; self.customFields = customFields
         self.createdAt = createdAt; self.updatedAt = updatedAt; self.payload = payload
+    }
+
+    // Migration helper: decode old groupID field to groupIDs array
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        type = try container.decode(EntryType.self, forKey: .type)
+        title = try container.decode(String.self, forKey: .title)
+        subtitle = try container.decode(String.self, forKey: .subtitle)
+
+        // Try new groupIDs first, fall back to old groupID
+        if let groupIDs = try? container.decode([UUID].self, forKey: .groupIDs) {
+            self.groupIDs = groupIDs
+        } else if let groupID = try? container.decodeIfPresent(UUID.self, forKey: .groupID) {
+            self.groupIDs = [groupID]
+        } else {
+            self.groupIDs = []
+        }
+
+        tags = try container.decode([String].self, forKey: .tags)
+        isFavorite = try container.decode(Bool.self, forKey: .isFavorite)
+        permissionNote = try container.decode(String.self, forKey: .permissionNote)
+        customFields = try container.decode([CustomField].self, forKey: .customFields)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        payload = try container.decode(EntryPayload.self, forKey: .payload)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(type, forKey: .type)
+        try container.encode(title, forKey: .title)
+        try container.encode(subtitle, forKey: .subtitle)
+        try container.encode(groupIDs, forKey: .groupIDs)
+        try container.encode(tags, forKey: .tags)
+        try container.encode(isFavorite, forKey: .isFavorite)
+        try container.encode(permissionNote, forKey: .permissionNote)
+        try container.encode(customFields, forKey: .customFields)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(updatedAt, forKey: .updatedAt)
+        try container.encode(payload, forKey: .payload)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, type, title, subtitle, groupID, groupIDs, tags, isFavorite
+        case permissionNote, customFields, createdAt, updatedAt, payload
     }
 }

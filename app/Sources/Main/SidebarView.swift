@@ -3,6 +3,7 @@ import CofferCore
 
 struct SidebarView: View {
     @Binding var section: SidebarSection?
+    @Binding var dragConfirmation: DragConfirmation?
     @EnvironmentObject var unlock: UnlockService
     @State private var showingAddGroup = false
     @State private var newGroupName = ""
@@ -22,6 +23,9 @@ struct SidebarView: View {
                 ForEach(unlock.document?.groups ?? []) { group in
                     Label(group.name, systemImage: group.symbolName)
                         .tag(SidebarSection.group(group.id))
+                        .dropDestination(for: String.self) { items, _ in
+                            handleDrop(items: items, to: group)
+                        }
                         .contextMenu {
                             Button("删除", role: .destructive) {
                                 deleteGroup(group)
@@ -37,6 +41,7 @@ struct SidebarView: View {
                             .foregroundColor(.accentColor)
                     }
                     .buttonStyle(.plain)
+                    .padding(.trailing, 16)
                 }
             }
             if !allTags.isEmpty {
@@ -80,11 +85,9 @@ struct SidebarView: View {
     private func deleteGroup(_ group: CofferCore.Group) {
         guard var doc = unlock.document else { return }
 
-        // 移除该分组下的所有条目的分组ID
+        // 从所有条目中移除该分组ID
         for i in doc.entries.indices {
-            if doc.entries[i].groupID == group.id {
-                doc.entries[i].groupID = nil
-            }
+            doc.entries[i].groupIDs.removeAll { $0 == group.id }
         }
 
         // 删除分组
@@ -100,6 +103,30 @@ struct SidebarView: View {
         } catch {
             print("删除分组失败: \(error)")
         }
+    }
+
+    private func handleDrop(items: [String], to group: CofferCore.Group) -> Bool {
+        guard let entryIDString = items.first,
+              let entryID = UUID(uuidString: entryIDString),
+              let entry = unlock.document?.entries.first(where: { $0.id == entryID }) else {
+            return false
+        }
+
+        // 如果已在目标分组，不处理
+        if entry.groupIDs.contains(group.id) {
+            return false
+        }
+
+        // 当前选中的分组ID（作为源分组）
+        let sourceGroupID: UUID? = if case .group(let id) = section { id } else { nil }
+
+        dragConfirmation = DragConfirmation(
+            entryID: entryID,
+            sourceGroupID: sourceGroupID,
+            targetGroupID: group.id,
+            entryTitle: entry.title
+        )
+        return true
     }
 }
 

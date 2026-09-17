@@ -12,7 +12,7 @@ public struct SearchIndex: Sendable {
     /// Search entries with optional filters.
     /// - Parameters:
     ///   - query: Search query (empty returns all entries sorted by updatedAt desc)
-    ///   - groupID: Filter by group
+    ///   - groupID: Filter by group (entry must be in this group)
     ///   - tag: Filter by tag (entry must have this tag)
     ///   - favoritesOnly: Filter favorites only
     /// - Returns: Matching entries sorted by relevance (or updatedAt desc if query is empty)
@@ -26,7 +26,7 @@ public struct SearchIndex: Sendable {
         var filtered = entries
 
         if let groupID = groupID {
-            filtered = filtered.filter { $0.groupID == groupID }
+            filtered = filtered.filter { $0.groupIDs.contains(groupID) }
         }
 
         if let tag = tag {

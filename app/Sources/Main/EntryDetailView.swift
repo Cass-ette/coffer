@@ -3,11 +3,12 @@ import CofferCore
 
 struct EntryDetailView: View {
     let entry: Entry
+    let currentGroupID: UUID?
+    @Binding var deleteConfirmation: DeleteConfirmation?
     @EnvironmentObject var app: AppState
     @EnvironmentObject var unlock: UnlockService
     @State private var revealed = Set<String>()
     @State private var editing = false
-    @State private var confirmDelete = false
 
     var body: some View {
         ScrollView {
@@ -42,7 +43,12 @@ struct EntryDetailView: View {
                     Label("收藏", systemImage: entry.isFavorite ? "star.fill" : "star")
                 }
                 Button("编辑") { editing = true }
-                Button(role: .destructive) { confirmDelete = true } label: {
+                Button(role: .destructive) {
+                    deleteConfirmation = DeleteConfirmation(
+                        entry: entry,
+                        currentGroupID: currentGroupID
+                    )
+                } label: {
                     Label("删除", systemImage: "trash")
                 }
             }
@@ -51,12 +57,6 @@ struct EntryDetailView: View {
             EntryEditorView(editing: entry)
                 .environmentObject(app)
                 .environmentObject(unlock)
-        }
-        .confirmationDialog("删除「\(entry.title)」？", isPresented: $confirmDelete,
-                            titleVisibility: .visible) {
-            Button("删除", role: .destructive) {
-                try? app.delete(entry.id)
-            }
         }
     }
 

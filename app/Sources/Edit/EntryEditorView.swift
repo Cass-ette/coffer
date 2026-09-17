@@ -64,7 +64,7 @@ struct EntryEditorView: View {
         _type = State(initialValue: e.type)
         _title = State(initialValue: e.title)
         _subtitle = State(initialValue: e.subtitle)
-        _groupID = State(initialValue: e.groupID)
+        _groupID = State(initialValue: e.groupIDs.first)
         _tagsText = State(initialValue: e.tags.joined(separator: ", "))
         _isFavorite = State(initialValue: e.isFavorite)
         _permissionNote = State(initialValue: e.permissionNote)
@@ -366,13 +366,13 @@ struct EntryEditorView: View {
         }
 
         var entry = editing ?? Entry(
-            id: UUID(), type: type, title: "", subtitle: "", groupID: nil,
+            id: UUID(), type: type, title: "", subtitle: "", groupIDs: [],
             tags: [], isFavorite: false, permissionNote: "", customFields: [],
             createdAt: Date(), updatedAt: Date(), payload: payload)
         entry.type = type
         entry.title = title
         entry.subtitle = subtitle
-        entry.groupID = groupID
+        entry.groupIDs = groupID.map { [$0] } ?? []
         entry.tags = parseTags(tagsText)
         entry.isFavorite = isFavorite
         entry.permissionNote = permissionNote

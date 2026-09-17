@@ -29,6 +29,8 @@ struct CofferCLI {
                 try await showAudit(args: Array(args.dropFirst()))
             case "undo":
                 try await undoOperation(args: Array(args.dropFirst()))
+            case "auth":
+                try await handleAuth(args: Array(args.dropFirst()))
             default:
                 print("Unknown command: \(command)")
                 printUsage()
@@ -72,6 +74,15 @@ struct CofferCLI {
             undo <operation-id>
                 Undo a previous operation
 
+            auth grant --scope <read|read_write> --expires <hours> [--description <text>]
+                Generate a new authorization token
+
+            auth list
+                List all valid tokens
+
+            auth revoke <token-id>
+                Revoke a token
+
         Entry Types:
             login, access, apiKey, sshKey, database, totp, secureNote
 
@@ -93,6 +104,25 @@ let vaultDir = FileManager.default
     .appendingPathComponent("cc.cassette.coffer")
 let auditPath = FileManager.default.homeDirectoryForCurrentUser
     .appendingPathComponent(".coffer/audit.log")
+let tokenManager = TokenManager()
+
+func checkAuthorization(requireWrite: Bool = false) throws {
+    guard let token = ProcessInfo.processInfo.environment["COFFER_AUTH_TOKEN"] else {
+        // No token = full access (for user's own direct usage)
+        return
+    }
+
+    let (valid, scope) = try tokenManager.validate(token)
+    guard valid, let scope = scope else {
+        throw NSError(domain: "CofferCLI", code: 403,
+                     userInfo: [NSLocalizedDescriptionKey: "Invalid or expired token"])
+    }
+
+    if requireWrite && scope == .read {
+        throw NSError(domain: "CofferCLI", code: 403,
+                     userInfo: [NSLocalizedDescriptionKey: "Token has read-only access, write operation denied"])
+    }
+}
 
 func loadVault() async throws -> VaultDocument {
     let fileStore = VaultFileStore(directory: vaultDir)
@@ -154,6 +184,7 @@ func logAudit(operation: String, entryTitle: String, details: String = "") {
 // MARK: - Commands
 
 func listEntries(args: [String]) async throws {
+    try checkAuthorization(requireWrite: false)
     let doc = try await loadVault()
     var entries = doc.entries
 
@@ -165,7 +196,7 @@ func listEntries(args: [String]) async throws {
             guard i + 1 < args.count else { throw NSError(domain: "CofferCLI", code: 2, userInfo: [NSLocalizedDescriptionKey: "--group requires a value"]) }
             let groupName = args[i + 1]
             if let group = doc.groups.first(where: { $0.name == groupName }) {
-                entries = entries.filter { $0.groupID == group.id }
+                entries = entries.filter { $0.groupIDs.contains(group.id) }
             }
             i += 2
         case "--tag":
@@ -184,10 +215,11 @@ func listEntries(args: [String]) async throws {
     print("Total: \(entries.count) entries\n")
     for entry in entries.sorted(by: { $0.title < $1.title }) {
         let star = entry.isFavorite ? "⭐️" : "  "
-        let groupName = entry.groupID.flatMap { gid in doc.groups.first(where: { $0.id == gid })?.name } ?? "-"
+        let groupNames = entry.groupIDs.compactMap { gid in doc.groups.first(where: { $0.id == gid })?.name }
+        let groupDisplay = groupNames.isEmpty ? "-" : groupNames.joined(separator: ", ")
         print("\(star) [\(entry.type.rawValue)] \(entry.title)")
         print("   ID: \(entry.id)")
-        print("   Group: \(groupName)")
+        print("   Groups: \(groupDisplay)")
         if !entry.subtitle.isEmpty {
             print("   Subtitle: \(entry.subtitle)")
         }
@@ -199,6 +231,7 @@ func listEntries(args: [String]) async throws {
 }
 
 func searchEntries(args: [String]) async throws {
+    try checkAuthorization(requireWrite: false)
     guard let query = args.first else {
         throw NSError(domain: "CofferCLI", code: 2, userInfo: [NSLocalizedDescriptionKey: "search requires a query"])
     }
@@ -219,6 +252,7 @@ func searchEntries(args: [String]) async throws {
 }
 
 func getEntry(args: [String]) async throws {
+    try checkAuthorization(requireWrite: false)
     guard let idOrTitle = args.first else {
         throw NSError(domain: "CofferCLI", code: 2, userInfo: [NSLocalizedDescriptionKey: "get requires an ID or title"])
     }
@@ -295,6 +329,7 @@ func printPayload(_ payload: EntryPayload) {
 }
 
 func addEntry(args: [String]) async throws {
+    try checkAuthorization(requireWrite: true)
     var doc = try await loadVault()
 
     var type: EntryType?
@@ -363,7 +398,7 @@ func addEntry(args: [String]) async throws {
         type: type,
         title: title,
         subtitle: subtitle,
-        groupID: groupID,
+        groupIDs: groupID.map { [$0] } ?? [],
         tags: tags,
         isFavorite: isFavorite,
         permissionNote: permissionNote,
@@ -431,6 +466,7 @@ func buildPayload(type: EntryType, args: [String: String]) throws -> EntryPayloa
 }
 
 func updateEntry(args: [String]) async throws {
+    try checkAuthorization(requireWrite: true)
     guard let idOrTitle = args.first else {
         throw NSError(domain: "CofferCLI", code: 2, userInfo: [NSLocalizedDescriptionKey: "update requires an ID or title"])
     }
@@ -496,6 +532,7 @@ func updateEntry(args: [String]) async throws {
 }
 
 func deleteEntry(args: [String]) async throws {
+    try checkAuthorization(requireWrite: true)
     guard let idOrTitle = args.first else {
         throw NSError(domain: "CofferCLI", code: 2, userInfo: [NSLocalizedDescriptionKey: "delete requires an ID or title"])
     }
@@ -551,4 +588,98 @@ func showAudit(args: [String]) async throws {
 func undoOperation(args: [String]) async throws {
     print("Undo functionality not yet implemented")
     print("Please use the audit log to identify the operation and manually revert it")
+}
+
+func handleAuth(args: [String]) async throws {
+    guard let subcommand = args.first else {
+        print("Usage: coffer-cli auth <grant|list|revoke>")
+        return
+    }
+
+    switch subcommand {
+    case "grant":
+        var scope = TokenScope.read
+        var hours = 24
+        var description = ""
+
+        var i = 1
+        while i < args.count {
+            switch args[i] {
+            case "--scope":
+                guard i + 1 < args.count else {
+                    throw NSError(domain: "CofferCLI", code: 2,
+                                userInfo: [NSLocalizedDescriptionKey: "--scope requires a value"])
+                }
+                let scopeStr = args[i + 1]
+                if scopeStr == "read" {
+                    scope = .read
+                } else if scopeStr == "read_write" {
+                    scope = .readWrite
+                } else {
+                    throw NSError(domain: "CofferCLI", code: 2,
+                                userInfo: [NSLocalizedDescriptionKey: "Invalid scope. Use 'read' or 'read_write'"])
+                }
+                i += 2
+            case "--expires":
+                guard i + 1 < args.count else {
+                    throw NSError(domain: "CofferCLI", code: 2,
+                                userInfo: [NSLocalizedDescriptionKey: "--expires requires a value"])
+                }
+                hours = Int(args[i + 1]) ?? 24
+                i += 2
+            case "--description":
+                guard i + 1 < args.count else {
+                    throw NSError(domain: "CofferCLI", code: 2,
+                                userInfo: [NSLocalizedDescriptionKey: "--description requires a value"])
+                }
+                description = args[i + 1]
+                i += 2
+            default:
+                i += 1
+            }
+        }
+
+        let token = try tokenManager.grant(scope: scope, expiresIn: hours, description: description)
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        print("Generated token (expires: \(formatter.string(from: token.expiresAt))):")
+        print(token.id)
+        print("\nExport for use:")
+        print("export COFFER_AUTH_TOKEN=\"\(token.id)\"")
+
+    case "list":
+        let tokens = try tokenManager.listValid()
+        if tokens.isEmpty {
+            print("No valid tokens")
+        } else {
+            print("Valid tokens (\(tokens.count)):\n")
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
+            for token in tokens {
+                print("ID: \(token.id)")
+                print("Scope: \(token.scope.rawValue)")
+                print("Created: \(formatter.string(from: token.createdAt))")
+                print("Expires: \(formatter.string(from: token.expiresAt))")
+                if !token.description.isEmpty {
+                    print("Description: \(token.description)")
+                }
+                print()
+            }
+        }
+
+    case "revoke":
+        guard args.count > 1 else {
+            throw NSError(domain: "CofferCLI", code: 2,
+                        userInfo: [NSLocalizedDescriptionKey: "revoke requires a token ID"])
+        }
+        let tokenId = args[1]
+        try tokenManager.revoke(tokenId)
+        print("✓ Revoked token \(tokenId)")
+
+    default:
+        print("Unknown auth subcommand: \(subcommand)")
+        print("Usage: coffer-cli auth <grant|list|revoke>")
+    }
 }

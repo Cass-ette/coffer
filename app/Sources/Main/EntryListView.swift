@@ -30,6 +30,7 @@ struct EntryListView: View {
                 }
                 .padding(.vertical, 2)
                 .tag(entry.id)
+                .draggable(entry.id.uuidString)
             }
         }
         .listStyle(.inset)

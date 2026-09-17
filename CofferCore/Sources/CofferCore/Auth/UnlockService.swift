@@ -200,6 +200,20 @@ public final class UnlockService: ObservableObject {
         dek = nil  // best-effort（spec 5.2 如实承认 String/SymmetricKey 无法保证清零）
     }
 
+    /// 重新从磁盘加载 vault，保持解锁状态（用于外部修改后刷新）
+    public func reload() throws {
+        guard let d = dek else {
+            throw NSError(domain: "UnlockService", code: 3,
+                         userInfo: [NSLocalizedDescriptionKey: "未解锁，无法刷新"])
+        }
+        envelope = try vaultStore.fileStore.readEnvelope()
+        guard let env = envelope else {
+            throw NSError(domain: "UnlockService", code: 4,
+                         userInfo: [NSLocalizedDescriptionKey: "vault 文件读取失败"])
+        }
+        document = try vaultStore.document(from: env, dek: d)
+    }
+
     /// 持久化当前 document 到磁盘
     public func persist() throws {
         guard let doc = document, let d = dek, let env = envelope else {
