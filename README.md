@@ -60,6 +60,13 @@ let success = try await context.evaluatePolicy(...)
 - 开发/测试：使用简单的 `kSecAttrAccessible = kSecAttrAccessibleWhenUnlocked`
 - 正式发布：用 Apple Developer 账号签名后再启用 ACL 保护
 
+### Touch ID 按钮无响应
+症状：点击 Touch ID 按钮完全无反应，不弹出认证对话框。
+根因：DEK 丢失（Keychain 条目被手动删除或损坏），`unlockWithBiometricsSync()` 检测到 DEK 不存在后静默返回 `.needMasterPassword`，UI 没有明显反馈。
+解决方案：
+- 用主密码解锁一次，`unlockWithMasterPassword()` 会自动检测并恢复 DEK 到 Keychain
+- 下次锁定后 Touch ID 即可正常使用
+
 ## 非目标（v1）
 
 浏览器自动填充 / iOS 与云同步 / 数据导入 / 密码健康审计 / 拼音搜索。
