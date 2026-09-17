@@ -120,6 +120,7 @@ struct MainView: View {
             SecureField("密码", text: $hiddenGroupPassword)
             Button("取消", role: .cancel) {
                 section = .all
+                pendingHiddenGroup = nil
                 hiddenGroupPassword = ""
             }
             Button("使用 Touch ID") {
@@ -166,13 +167,13 @@ struct MainView: View {
         let vaultDir = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("cc.cassette.coffer")
-        let vaultPath = vaultDir.appendingPathComponent("vault.vault").path
 
-        let fileDescriptor = open(vaultPath, O_EVTONLY)
-        guard fileDescriptor >= 0 else { return }
+        // 监听目录而不是文件，因为 replaceItemAt 会替换 inode
+        let dirDescriptor = open(vaultDir.path, O_EVTONLY)
+        guard dirDescriptor >= 0 else { return }
 
         let source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: fileDescriptor,
+            fileDescriptor: dirDescriptor,
             eventMask: .write,
             queue: DispatchQueue.main
         )
@@ -191,7 +192,7 @@ struct MainView: View {
         }
 
         source.setCancelHandler {
-            close(fileDescriptor)
+            close(dirDescriptor)
         }
 
         source.resume()
@@ -206,14 +207,15 @@ struct MainView: View {
     private func handleSectionChange(from oldValue: SidebarSection?, to newValue: SidebarSection?) {
         guard case .group(let groupID) = newValue,
               let group = unlock.document?.groups.first(where: { $0.id == groupID }),
-              group.isHidden else {
+              group.isHidden,
+              pendingHiddenGroup != groupID else {  // 防止重复触发
             return
         }
 
         // 用户点击了隐藏分组，需要验证
         pendingHiddenGroup = groupID
         showingHiddenGroupAuth = true
-        section = oldValue  // 暂时恢复到旧状态
+        // 不要在这里修改 section，让验证完成后再改
     }
 
     private func authenticateWithBiometry() {
@@ -235,7 +237,10 @@ struct MainView: View {
                     hiddenGroupPassword = ""
                     pendingHiddenGroup = nil
                 } else {
+                    // 验证失败，恢复到"全部"
+                    showingHiddenGroupAuth = false
                     section = .all
+                    pendingHiddenGroup = nil
                 }
             }
         }

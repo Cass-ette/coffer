@@ -59,6 +59,9 @@ struct SidebarView: View {
                     ForEach(hiddenGroups) { group in
                         Label(group.name, systemImage: group.symbolName)
                             .tag(SidebarSection.group(group.id))
+                            .dropDestination(for: String.self) { items, _ in
+                                handleDrop(items: items, to: group)
+                            }
                             .contextMenu {
                                 Button("删除", role: .destructive) {
                                     deleteGroup(group)
