@@ -8,6 +8,8 @@ struct SidebarView: View {
     @State private var showingAddGroup = false
     @State private var newGroupName = ""
     @State private var newGroupIcon = "folder"
+    @State private var newGroupIsHidden = false
+    @State private var newGroupPassword = ""
 
     private var allTags: [String] {
         Array(Set((unlock.document?.entries ?? []).flatMap(\.tags))).sorted()
@@ -90,7 +92,11 @@ struct SidebarView: View {
                 groupName: $newGroupName,
                 groupIcon: $newGroupIcon,
                 isPresented: $showingAddGroup,
-                onSave: { addGroup() }
+                onSave: { isHidden, password in
+                    newGroupIsHidden = isHidden
+                    newGroupPassword = password
+                    addGroup()
+                }
             )
         }
     }
@@ -99,7 +105,21 @@ struct SidebarView: View {
         guard !newGroupName.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         guard var doc = unlock.document else { return }
 
-        let group = CofferCore.Group(name: newGroupName, symbolName: newGroupIcon)
+        print("DEBUG: Creating group - name: \(newGroupName), isHidden: \(newGroupIsHidden), hasPassword: \(!newGroupPassword.isEmpty)")
+
+        let passwordHash = newGroupIsHidden && !newGroupPassword.isEmpty
+            ? CofferCore.Group.hashPassword(newGroupPassword)
+            : nil
+
+        let group = CofferCore.Group(
+            name: newGroupName,
+            symbolName: newGroupIcon,
+            isHidden: newGroupIsHidden,
+            passwordHash: passwordHash
+        )
+
+        print("DEBUG: Group created - isHidden: \(group.isHidden), passwordHash: \(group.passwordHash != nil)")
+
         doc.groups.append(group)
         unlock.document = doc
 
@@ -107,6 +127,8 @@ struct SidebarView: View {
             try unlock.persist()
             newGroupName = ""
             newGroupIcon = "folder"
+            newGroupIsHidden = false
+            newGroupPassword = ""
         } catch {
             print("保存分组失败: \(error)")
         }
@@ -164,7 +186,11 @@ struct AddGroupSheet: View {
     @Binding var groupName: String
     @Binding var groupIcon: String
     @Binding var isPresented: Bool
-    let onSave: () -> Void
+    let onSave: (Bool, String) -> Void  // (isHidden, password)
+
+    @State private var isHidden = false
+    @State private var password = ""
+    @State private var confirmPassword = ""
 
     private let commonIcons = [
         "folder", "network", "server.rack", "lock.shield",
@@ -199,6 +225,19 @@ struct AddGroupSheet: View {
                 }
             }
 
+            Divider()
+
+            Toggle("设为隐藏分组", isOn: $isHidden)
+
+            if isHidden {
+                VStack(spacing: 12) {
+                    SecureField("密码", text: $password)
+                        .textFieldStyle(.roundedBorder)
+                    SecureField("确认密码", text: $confirmPassword)
+                        .textFieldStyle(.roundedBorder)
+                }
+            }
+
             HStack {
                 Button("取消") {
                     isPresented = false
@@ -208,14 +247,22 @@ struct AddGroupSheet: View {
                 Spacer()
 
                 Button("创建") {
-                    onSave()
+                    onSave(isHidden, password)
                     isPresented = false
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(groupName.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(!isValid)
             }
         }
         .padding()
         .frame(width: 400)
+    }
+
+    private var isValid: Bool {
+        guard !groupName.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+        if isHidden {
+            return password.count >= 6 && password == confirmPassword
+        }
+        return true
     }
 }

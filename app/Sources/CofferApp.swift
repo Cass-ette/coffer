@@ -12,6 +12,8 @@ struct CofferApp: App {
         }
         Settings {
             SettingsView()
+                .environmentObject(app)
+                .environmentObject(app.unlock)
         }
     }
 }
