@@ -156,6 +156,12 @@ public final class UnlockService: ObservableObject {
         guard let env = envelope else { return .failed("vault 未加载") }
         do {
             let key = try vaultStore.dek(from: env, masterPassword: password)
+
+            // If DEK is missing from Keychain, restore it
+            if !dekStore.contains() {
+                try? dekStore.store(key)
+            }
+
             return try finishUnlock(dek: key)
         } catch {
             return .wrongPassword  // PBKDF2 解包失败 = 密码不对（GCM 认证失败）
