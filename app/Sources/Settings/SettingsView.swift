@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State private var saveError: String?
     @State private var showingChangePassword = false
     @State private var confirmRestore = false
+    @State private var confirmReset = false
 
     private struct Choice: Identifiable {
         let label: String
@@ -46,6 +47,7 @@ struct SettingsView: View {
             Section("数据") {
                 Button("从备份恢复…") { confirmRestore = true }
                     .disabled(!unlock.isUnlocked)
+                Button("重置保险库…", role: .destructive) { confirmReset = true }
                 LabeledContent("保险库位置") {
                     Text(VaultFileStore.defaultDirectory().path)
                         .font(.caption)
@@ -73,6 +75,12 @@ struct SettingsView: View {
                 } else {
                     saveError = "恢复失败：备份不可用"
                 }
+            }
+        }
+        .confirmationDialog("删除所有数据并重新创建？此操作不可撤销。",
+                            isPresented: $confirmReset, titleVisibility: .visible) {
+            Button("删除并重置", role: .destructive) {
+                resetVault()
             }
         }
     }
@@ -115,6 +123,11 @@ struct SettingsView: View {
         } catch {
             saveError = "保存失败：\(error.localizedDescription)（改动仍在内存中，未落盘）"
         }
+    }
+
+    private func resetVault() {
+        unlock.discardVaultAndBackups()
+        app.phase = .firstRun
     }
 }
 

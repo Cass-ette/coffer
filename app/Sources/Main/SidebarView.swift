@@ -4,6 +4,9 @@ import CofferCore
 struct SidebarView: View {
     @Binding var section: SidebarSection?
     @EnvironmentObject var unlock: UnlockService
+    @State private var showingAddGroup = false
+    @State private var newGroupName = ""
+    @State private var newGroupIcon = "folder"
 
     private var allTags: [String] {
         Array(Set((unlock.document?.entries ?? []).flatMap(\.tags))).sorted()
@@ -15,10 +18,25 @@ struct SidebarView: View {
                 Label("全部", systemImage: "tray.full").tag(SidebarSection.all)
                 Label("收藏", systemImage: "star").tag(SidebarSection.favorites)
             }
-            Section("分组") {
+            Section {
                 ForEach(unlock.document?.groups ?? []) { group in
                     Label(group.name, systemImage: group.symbolName)
                         .tag(SidebarSection.group(group.id))
+                        .contextMenu {
+                            Button("删除", role: .destructive) {
+                                deleteGroup(group)
+                            }
+                        }
+                }
+            } header: {
+                HStack {
+                    Text("分组")
+                    Spacer()
+                    Button(action: { showingAddGroup = true }) {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundColor(.accentColor)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             if !allTags.isEmpty {
@@ -31,6 +49,116 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
-        .navigationSplitViewColumnWidth(min: 170, ideal: 210)
+        .navigationSplitViewColumnWidth(min: 200, ideal: 240)
+        .sheet(isPresented: $showingAddGroup) {
+            AddGroupSheet(
+                groupName: $newGroupName,
+                groupIcon: $newGroupIcon,
+                isPresented: $showingAddGroup,
+                onSave: { addGroup() }
+            )
+        }
+    }
+
+    private func addGroup() {
+        guard !newGroupName.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        guard var doc = unlock.document else { return }
+
+        let group = CofferCore.Group(name: newGroupName, symbolName: newGroupIcon)
+        doc.groups.append(group)
+        unlock.document = doc
+
+        do {
+            try unlock.persist()
+            newGroupName = ""
+            newGroupIcon = "folder"
+        } catch {
+            print("保存分组失败: \(error)")
+        }
+    }
+
+    private func deleteGroup(_ group: CofferCore.Group) {
+        guard var doc = unlock.document else { return }
+
+        // 移除该分组下的所有条目的分组ID
+        for i in doc.entries.indices {
+            if doc.entries[i].groupID == group.id {
+                doc.entries[i].groupID = nil
+            }
+        }
+
+        // 删除分组
+        doc.groups.removeAll { $0.id == group.id }
+        unlock.document = doc
+
+        do {
+            try unlock.persist()
+            // 如果当前选中的就是被删除的分组，切换到"全部"
+            if case .group(let id) = section, id == group.id {
+                section = .all
+            }
+        } catch {
+            print("删除分组失败: \(error)")
+        }
+    }
+}
+
+struct AddGroupSheet: View {
+    @Binding var groupName: String
+    @Binding var groupIcon: String
+    @Binding var isPresented: Bool
+    let onSave: () -> Void
+
+    private let commonIcons = [
+        "folder", "network", "server.rack", "lock.shield",
+        "graduationcap", "building.2", "house",
+        "chevron.left.forwardslash.chevron.right",
+        "key", "person", "briefcase", "globe"
+    ]
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("新建分组")
+                .font(.headline)
+
+            TextField("分组名称", text: $groupName)
+                .textFieldStyle(.roundedBorder)
+
+            Text("选择图标")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 12) {
+                ForEach(commonIcons, id: \.self) { icon in
+                    Button(action: { groupIcon = icon }) {
+                        Image(systemName: icon)
+                            .font(.title2)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                    .frame(height: 44)
+                    .background(groupIcon == icon ? Color.accentColor.opacity(0.2) : Color.gray.opacity(0.1))
+                    .cornerRadius(8)
+                    .buttonStyle(.plain)
+                }
+            }
+
+            HStack {
+                Button("取消") {
+                    isPresented = false
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Spacer()
+
+                Button("创建") {
+                    onSave()
+                    isPresented = false
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(groupName.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding()
+        .frame(width: 400)
     }
 }

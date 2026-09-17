@@ -38,6 +38,9 @@ struct EntryDetailView: View {
         }
         .toolbar {
             ToolbarItemGroup {
+                Button(action: toggleFavorite) {
+                    Label("收藏", systemImage: entry.isFavorite ? "star.fill" : "star")
+                }
                 Button("编辑") { editing = true }
                 Button(role: .destructive) { confirmDelete = true } label: {
                     Label("删除", systemImage: "trash")
@@ -54,6 +57,20 @@ struct EntryDetailView: View {
             Button("删除", role: .destructive) {
                 try? app.delete(entry.id)
             }
+        }
+    }
+
+    private func toggleFavorite() {
+        guard var doc = unlock.document else { return }
+        guard let index = doc.entries.firstIndex(where: { $0.id == entry.id }) else { return }
+
+        doc.entries[index].isFavorite.toggle()
+        unlock.document = doc
+
+        do {
+            try unlock.persist()
+        } catch {
+            print("切换收藏失败: \(error)")
         }
     }
 
@@ -141,6 +158,14 @@ struct EntryDetailView: View {
             add("主机", p.host)
             add("用户", p.user)
             add("私钥", p.privateKey, secret: true, mono: true)
+        case .database(let p):
+            add("主机", p.host)
+            add("端口", p.port)
+            add("数据库名", p.databaseName)
+            add("用户名", p.username)
+            add("密码", p.password, secret: true)
+            add("类型", p.dbType)
+            add("网络", p.networkLocation)
         case .totp(let p):
             add("周期", "\(p.period)s")
         case .secureNote(let p):

@@ -51,27 +51,17 @@ public final class SystemDEKStore: DEKStoring, Sendable {
         // Delete any existing entry first
         _ = try? delete()
 
-        // Create access control with userPresence requirement
-        // Use .biometryAny to allow storage without immediate auth, require auth on retrieval
-        guard let access = SecAccessControlCreateWithFlags(
-            kCFAllocatorDefault,
-            kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-            [.biometryAny, .or, .devicePasscode],
-            nil
-        ) else {
-            throw DEKStoreError.unexpectedStatus(errSecParam)
-        }
-
         // Convert SymmetricKey to Data for Keychain storage
         let dekData = dek.withUnsafeBytes { Data($0) }
 
-        // Store with ACL
+        // Store without ACL first to bypass -34018 error
+        // TODO: Add biometric protection after fixing signing issues
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecValueData as String: dekData,
-            kSecAttrAccessControl as String: access
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked
         ]
 
         let status = SecItemAdd(query as CFDictionary, nil)
@@ -81,25 +71,45 @@ public final class SystemDEKStore: DEKStoring, Sendable {
     }
 
     public func retrieve(using context: LAContext) throws -> SymmetricKey? {
-        // Use LAContext with interactionNotAllowed=true (already authenticated)
-        context.interactionNotAllowed = true
-
-        let query: [String: Any] = [
+        // Try without authentication context first (for simple storage without ACL)
+        let simpleQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecUseAuthenticationContext as String: context
+            kSecReturnData as String: true
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        var status = SecItemCopyMatching(simpleQuery as CFDictionary, &result)
+
+        // If simple query succeeds, return the data
+        if status == errSecSuccess {
+            guard let data = result as? Data else { return nil }
+            return SymmetricKey(data: data)
+        }
+
+        // If simple query fails with interaction required, try with context (ACL-protected item)
+        if status == errSecInteractionNotAllowed {
+            context.interactionNotAllowed = true
+            let contextQuery: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: account,
+                kSecReturnData as String: true,
+                kSecUseAuthenticationContext as String: context
+            ]
+
+            result = nil
+            status = SecItemCopyMatching(contextQuery as CFDictionary, &result)
+
+            if status == errSecSuccess {
+                guard let data = result as? Data else { return nil }
+                return SymmetricKey(data: data)
+            }
+        }
 
         // Expected "not found" or "auth failed" cases return nil
         switch status {
-        case errSecSuccess:
-            guard let data = result as? Data else { return nil }
-            return SymmetricKey(data: data)
         case errSecItemNotFound,
              errSecAuthFailed,
              errSecUserCanceled,

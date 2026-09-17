@@ -40,6 +40,26 @@ open Coffer.xcodeproj   # ⌘R 运行
 
 数据文件位于 `~/Library/Application Support/Coffer/`，永不进入仓库。
 
+## 已知问题
+
+### Touch ID 调用方式
+`LAContext.evaluatePolicy` 必须使用 completion handler 方式调用，async/await 方式在某些 macOS 版本上不工作：
+```swift
+// ✅ 正确
+context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { success, error in
+    continuation.resume(returning: success)
+}
+
+// ❌ 不工作
+let success = try await context.evaluatePolicy(...)
+```
+
+### Keychain ACL 在开发构建中失败
+开发阶段使用 `SecAccessControlCreateWithFlags` 创建带生物识别保护的 Keychain 项会报 -34018 错误。
+解决方案：
+- 开发/测试：使用简单的 `kSecAttrAccessible = kSecAttrAccessibleWhenUnlocked`
+- 正式发布：用 Apple Developer 账号签名后再启用 ACL 保护
+
 ## 非目标（v1）
 
 浏览器自动填充 / iOS 与云同步 / 数据导入 / 密码健康审计 / 拼音搜索。

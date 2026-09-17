@@ -8,6 +8,7 @@ extension EntryType {
         case .access: return "building.columns"
         case .apiKey: return "key"
         case .sshKey: return "terminal"
+        case .database: return "cylinder"
         case .totp: return "timer"
         case .secureNote: return "note.text"
         }
@@ -19,6 +20,7 @@ extension EntryType {
         case .access: return "权限"
         case .apiKey: return "API 密钥"
         case .sshKey: return "SSH 密钥"
+        case .database: return "数据库"
         case .totp: return "验证码"
         case .secureNote: return "安全笔记"
         }

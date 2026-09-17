@@ -104,6 +104,14 @@ public struct SearchIndex: Sendable {
             if let s = FuzzyMatch.score(query: query, in: payload.host) {
                 maxScore = max(maxScore, s * 40)
             }
+        case .database(let payload):
+            // Host and database name are searchable
+            if let s = FuzzyMatch.score(query: query, in: payload.host) {
+                maxScore = max(maxScore, s * 60)
+            }
+            if let s = FuzzyMatch.score(query: query, in: payload.databaseName) {
+                maxScore = max(maxScore, s * 60)
+            }
         case .totp, .secureNote:
             // No searchable non-sensitive fields in payload
             break

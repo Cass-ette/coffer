@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct EntryEditorView: View {
     let editing: Entry?
+    let preselectedGroupID: UUID?
     @EnvironmentObject var app: AppState
     @EnvironmentObject var unlock: UnlockService
     @Environment(\.dismiss) private var dismiss
@@ -31,6 +32,13 @@ struct EntryEditorView: View {
     @State private var sshHost = ""
     @State private var sshUser = ""
     @State private var sshKey = ""
+    @State private var dbHost = ""
+    @State private var dbPort = ""
+    @State private var dbName = ""
+    @State private var dbUsername = ""
+    @State private var dbPassword = ""
+    @State private var dbType = "MySQL"
+    @State private var dbNetwork = "内网"
     @State private var totpInput = ""
     @State private var noteBody = ""
     @State private var attachments: [Attachment] = []
@@ -41,12 +49,18 @@ struct EntryEditorView: View {
 
     private let loginMethods = ["SSO", "密码", "免登"]
     private let networks = ["内网", "公网"]
+    private let dbTypes = ["MySQL", "PostgreSQL", "MongoDB", "Redis", "Oracle", "SQL Server", "SQLite"]
     private let maxAttachmentBytes = 2 * 1024 * 1024
     private let maxAttachmentCount = 5
 
-    init(editing: Entry?) {
+    init(editing: Entry?, preselectedGroupID: UUID? = nil) {
         self.editing = editing
-        guard let e = editing else { return }
+        self.preselectedGroupID = preselectedGroupID
+        guard let e = editing else {
+            // 新建条目时应用预选分组
+            _groupID = State(initialValue: preselectedGroupID)
+            return
+        }
         _type = State(initialValue: e.type)
         _title = State(initialValue: e.title)
         _subtitle = State(initialValue: e.subtitle)
@@ -73,6 +87,14 @@ struct EntryEditorView: View {
             _sshHost = State(initialValue: p.host)
             _sshUser = State(initialValue: p.user)
             _sshKey = State(initialValue: p.privateKey)
+        case .database(let p):
+            _dbHost = State(initialValue: p.host)
+            _dbPort = State(initialValue: p.port)
+            _dbName = State(initialValue: p.databaseName)
+            _dbUsername = State(initialValue: p.username)
+            _dbPassword = State(initialValue: p.password)
+            _dbType = State(initialValue: p.dbType)
+            _dbNetwork = State(initialValue: p.networkLocation)
         case .totp(let p):
             _totpInput = State(initialValue: p.secretBase32)
         case .secureNote(let p):
@@ -207,6 +229,20 @@ struct EntryEditorView: View {
                     .font(.system(.body, design: .monospaced))
                     .lineLimit(3...8)
             }
+        case .database:
+            Section("数据库") {
+                TextField("主机地址", text: $dbHost)
+                TextField("端口", text: $dbPort)
+                TextField("数据库名", text: $dbName)
+                TextField("用户名", text: $dbUsername)
+                SecureField("密码", text: $dbPassword)
+                Picker("数据库类型", selection: $dbType) {
+                    ForEach(dbTypes, id: \.self) { Text($0) }
+                }
+                Picker("网络位置", selection: $dbNetwork) {
+                    ForEach(networks, id: \.self) { Text($0) }
+                }
+            }
         case .totp:
             Section("2FA 验证码") {
                 TextField("种子（Base32）或完整 otpauth:// 链接", text: $totpInput, axis: .vertical)
@@ -315,6 +351,10 @@ struct EntryEditorView: View {
                                             secret: apiKeySecret, envPrefix: apiKeyEnv))
         case .sshKey:
             payload = .sshKey(SSHKeyPayload(host: sshHost, user: sshUser, privateKey: sshKey))
+        case .database:
+            payload = .database(DatabasePayload(host: dbHost, port: dbPort, databaseName: dbName,
+                                                username: dbUsername, password: dbPassword,
+                                                dbType: dbType, networkLocation: dbNetwork))
         case .totp:
             guard let p = buildTOTP() else {
                 error = "种子无效：需合法 Base32 或 otpauth:// 链接"

@@ -4,6 +4,7 @@ public enum EntryType: String, Codable, Sendable, CaseIterable {
     case login, access
     case apiKey = "api_key"
     case sshKey = "ssh_key"
+    case database
     case totp
     case secureNote = "secure_note"
 }
@@ -55,6 +56,21 @@ public struct SSHKeyPayload: Codable, Hashable, Sendable {
     }
 }
 
+public struct DatabasePayload: Codable, Hashable, Sendable {
+    public var host: String
+    public var port: String
+    public var databaseName: String
+    public var username: String
+    public var password: String
+    public var dbType: String  // MySQL / PostgreSQL / MongoDB / Redis / etc
+    public var networkLocation: String  // 内网 / 公网
+    public init(host: String, port: String, databaseName: String, username: String, password: String, dbType: String, networkLocation: String) {
+        self.host = host; self.port = port; self.databaseName = databaseName
+        self.username = username; self.password = password
+        self.dbType = dbType; self.networkLocation = networkLocation
+    }
+}
+
 public struct TOTPPayload: Codable, Hashable, Sendable {
     public var secretBase32: String
     public var algorithm: String  // "SHA1" / "SHA256" / "SHA512"
@@ -89,6 +105,7 @@ public enum EntryPayload: Codable, Hashable, Sendable {
     case access(AccessPayload)
     case apiKey(APIKeyPayload)
     case sshKey(SSHKeyPayload)
+    case database(DatabasePayload)
     case totp(TOTPPayload)
     case secureNote(SecureNotePayload)
 }

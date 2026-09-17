@@ -98,18 +98,21 @@ struct LockScreenView: View {
     }
 
     private func unlockWithBiometrics() {
-        Task {
-            let result = await unlock.unlockWithBiometrics()
-            switch result {
-            case .unlocked:
-                app.phase = .unlocked
-            case .cancelled, .needMasterPassword:
-                mode = .password
-            case .failed(let msg):
-                errorMessage = msg
-                showError = true
-            case .wrongPassword:
-                break
+        // Call unlock synchronously (like KeyShelf does)
+        // The biometric prompt happens immediately, completion handler processes result
+        unlock.unlockWithBiometricsSync { [weak app] result in
+            Task { @MainActor in
+                switch result {
+                case .unlocked:
+                    app?.phase = .unlocked
+                case .cancelled, .needMasterPassword:
+                    self.mode = .password
+                case .failed(let msg):
+                    self.errorMessage = msg
+                    self.showError = true
+                case .wrongPassword:
+                    break
+                }
             }
         }
     }

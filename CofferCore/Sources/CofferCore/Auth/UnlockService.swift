@@ -11,13 +11,35 @@ public protocol BiometryPrompting: AnyObject {
 public final class TouchIDPrompt: BiometryPrompting {
     public init() {}
     public func authenticatedContext(reason: String) async -> LAContext? {
-        let ctx = LAContext()
-        do {
-            let ok = try await ctx.evaluatePolicy(.deviceOwnerAuthentication,
-                                                  localizedReason: reason)
-            return ok ? ctx : nil
-        } catch {
+        // Check if biometry is available
+        let checkCtx = LAContext()
+        var error: NSError?
+        guard checkCtx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
+            print("❌ TouchID: canEvaluatePolicy failed: \(error?.localizedDescription ?? "unknown")")
             return nil
+        }
+
+        print("✅ TouchID: biometry available, calling evaluatePolicy...")
+
+        // Use completion handler style instead of async/await
+        return await withCheckedContinuation { continuation in
+            let ctx = LAContext()
+            ctx.evaluatePolicy(
+                .deviceOwnerAuthentication,
+                localizedReason: reason
+            ) { success, error in
+                if success {
+                    print("✅ TouchID: evaluatePolicy succeeded")
+                    continuation.resume(returning: ctx)
+                } else {
+                    if let laError = error as? LAError {
+                        print("❌ TouchID: evaluatePolicy failed with LAError: \(laError.code.rawValue) - \(laError.localizedDescription)")
+                    } else {
+                        print("❌ TouchID: evaluatePolicy failed: \(error?.localizedDescription ?? "unknown")")
+                    }
+                    continuation.resume(returning: nil)
+                }
+            }
         }
     }
 }
@@ -75,6 +97,57 @@ public final class UnlockService: ObservableObject {
             return try finishUnlock(dek: key)
         } catch {
             return .failed(error.localizedDescription)
+        }
+    }
+
+    /// Synchronous version using completion handler (like KeyShelf)
+    public func unlockWithBiometricsSync(completion: @escaping (UnlockResult) -> Void) {
+        guard envelope != nil else {
+            completion(.failed("vault 未加载"))
+            return
+        }
+        guard dekStore.contains() else {
+            completion(.needMasterPassword)
+            return
+        }
+
+        let context = LAContext()
+        var availabilityError: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &availabilityError) else {
+            completion(.failed(availabilityError?.localizedDescription ?? "生物识别不可用"))
+            return
+        }
+
+        context.evaluatePolicy(
+            .deviceOwnerAuthentication,
+            localizedReason: "解锁 Coffer 保险库"
+        ) { [weak self] success, error in
+            guard let self = self else {
+                completion(.failed("服务已释放"))
+                return
+            }
+
+            guard success else {
+                if let laError = error as? LAError,
+                   laError.code == .userCancel || laError.code == .appCancel || laError.code == .systemCancel {
+                    completion(.cancelled)
+                } else {
+                    completion(.failed(error?.localizedDescription ?? "认证失败"))
+                }
+                return
+            }
+
+            // Authentication succeeded, now retrieve DEK
+            do {
+                guard let key = try self.dekStore.retrieve(using: context) else {
+                    completion(.needMasterPassword)
+                    return
+                }
+                let result = try self.finishUnlock(dek: key)
+                completion(result)
+            } catch {
+                completion(.failed(error.localizedDescription))
+            }
         }
     }
 

@@ -10,6 +10,7 @@ enum SidebarSection: Hashable {
 struct EditorTarget: Identifiable {
     let id = UUID()
     let entry: Entry?
+    let preselectedGroupID: UUID?
 }
 
 struct MainView: View {
@@ -51,7 +52,8 @@ struct MainView: View {
         .toolbar {
             ToolbarItem {
                 Button {
-                    editorTarget = EditorTarget(entry: nil)
+                    let groupID: UUID? = if case .group(let id) = section { id } else { nil }
+                    editorTarget = EditorTarget(entry: nil, preselectedGroupID: groupID)
                 } label: {
                     Label("新建条目", systemImage: "plus")
                 }
@@ -65,7 +67,7 @@ struct MainView: View {
             }
         }
         .sheet(item: $editorTarget) { target in
-            EntryEditorView(editing: target.entry)
+            EntryEditorView(editing: target.entry, preselectedGroupID: target.preselectedGroupID)
                 .environmentObject(app)
                 .environmentObject(unlock)
         }
