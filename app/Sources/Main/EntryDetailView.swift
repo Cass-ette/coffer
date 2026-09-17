@@ -42,6 +42,10 @@ struct EntryDetailView: View {
                 Button(action: toggleFavorite) {
                     Label("收藏", systemImage: entry.isFavorite ? "star.fill" : "star")
                 }
+                Button(action: toggleHidden) {
+                    Label(entry.isHidden ? "取消隐藏" : "隐藏",
+                          systemImage: entry.isHidden ? "eye" : "eye.slash")
+                }
                 Button("编辑") { editing = true }
                 Button(role: .destructive) {
                     deleteConfirmation = DeleteConfirmation(
@@ -71,6 +75,20 @@ struct EntryDetailView: View {
             try unlock.persist()
         } catch {
             print("切换收藏失败: \(error)")
+        }
+    }
+
+    private func toggleHidden() {
+        guard var doc = unlock.document else { return }
+        guard let index = doc.entries.firstIndex(where: { $0.id == entry.id }) else { return }
+
+        doc.entries[index].isHidden.toggle()
+        unlock.document = doc
+
+        do {
+            try unlock.persist()
+        } catch {
+            print("切换隐藏失败: \(error)")
         }
     }
 

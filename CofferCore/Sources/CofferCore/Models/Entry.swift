@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 public enum EntryType: String, Codable, Sendable, CaseIterable {
     case login, access
@@ -114,10 +115,28 @@ public struct Group: Codable, Hashable, Identifiable, Sendable {
     public var id: UUID
     public var name: String
     public var symbolName: String  // SF Symbol
-    public init(id: UUID = UUID(), name: String, symbolName: String) {
+    public var isHidden: Bool
+    public var passwordHash: String?  // SHA-256 hash of password, nil if using biometry only
+
+    public init(id: UUID = UUID(), name: String, symbolName: String, isHidden: Bool = false, passwordHash: String? = nil) {
         self.id = id; self.name = name; self.symbolName = symbolName
+        self.isHidden = isHidden; self.passwordHash = passwordHash
+    }
+
+    /// Verify password against stored hash
+    public func verifyPassword(_ password: String) -> Bool {
+        guard let hash = passwordHash else { return true }  // No password set
+        return Self.hashPassword(password) == hash
+    }
+
+    /// Create SHA-256 hash of password
+    public static func hashPassword(_ password: String) -> String {
+        let data = Data(password.utf8)
+        let hash = CryptoKit.SHA256.hash(data: data)
+        return hash.compactMap { String(format: "%02x", $0) }.joined()
     }
 }
+
 
 public struct Entry: Codable, Hashable, Identifiable, Sendable {
     public var id: UUID
@@ -127,6 +146,7 @@ public struct Entry: Codable, Hashable, Identifiable, Sendable {
     public var groupIDs: [UUID]
     public var tags: [String]
     public var isFavorite: Bool
+    public var isHidden: Bool
     public var permissionNote: String
     public var customFields: [CustomField]
     public var createdAt: Date
@@ -134,11 +154,11 @@ public struct Entry: Codable, Hashable, Identifiable, Sendable {
     public var payload: EntryPayload
 
     public init(id: UUID = UUID(), type: EntryType, title: String, subtitle: String,
-                groupIDs: [UUID], tags: [String], isFavorite: Bool, permissionNote: String,
+                groupIDs: [UUID], tags: [String], isFavorite: Bool, isHidden: Bool, permissionNote: String,
                 customFields: [CustomField], createdAt: Date, updatedAt: Date, payload: EntryPayload) {
         self.id = id; self.type = type; self.title = title; self.subtitle = subtitle
         self.groupIDs = groupIDs; self.tags = tags; self.isFavorite = isFavorite
-        self.permissionNote = permissionNote; self.customFields = customFields
+        self.isHidden = isHidden; self.permissionNote = permissionNote; self.customFields = customFields
         self.createdAt = createdAt; self.updatedAt = updatedAt; self.payload = payload
     }
 
@@ -161,6 +181,7 @@ public struct Entry: Codable, Hashable, Identifiable, Sendable {
 
         tags = try container.decode([String].self, forKey: .tags)
         isFavorite = try container.decode(Bool.self, forKey: .isFavorite)
+        isHidden = try container.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
         permissionNote = try container.decode(String.self, forKey: .permissionNote)
         customFields = try container.decode([CustomField].self, forKey: .customFields)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
@@ -177,6 +198,7 @@ public struct Entry: Codable, Hashable, Identifiable, Sendable {
         try container.encode(groupIDs, forKey: .groupIDs)
         try container.encode(tags, forKey: .tags)
         try container.encode(isFavorite, forKey: .isFavorite)
+        try container.encode(isHidden, forKey: .isHidden)
         try container.encode(permissionNote, forKey: .permissionNote)
         try container.encode(customFields, forKey: .customFields)
         try container.encode(createdAt, forKey: .createdAt)
@@ -185,7 +207,7 @@ public struct Entry: Codable, Hashable, Identifiable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, type, title, subtitle, groupID, groupIDs, tags, isFavorite
+        case id, type, title, subtitle, groupID, groupIDs, tags, isFavorite, isHidden
         case permissionNote, customFields, createdAt, updatedAt, payload
     }
 }

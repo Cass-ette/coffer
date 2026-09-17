@@ -1,5 +1,6 @@
 import SwiftUI
 import CofferCore
+import LocalAuthentication
 
 enum SidebarSection: Hashable {
     case all, favorites
@@ -41,15 +42,18 @@ struct MainView: View {
     @State private var dragConfirmation: DragConfirmation?
     @State private var deleteConfirmation: DeleteConfirmation?
     @State private var fileMonitor: DispatchSourceFileSystemObject?
+    @State private var pendingHiddenGroup: UUID?
+    @State private var hiddenGroupPassword = ""
+    @State private var showingHiddenGroupAuth = false
 
     private var visibleEntries: [Entry] {
         let index = SearchIndex(entries: unlock.document?.entries ?? [])
-        guard let section else { return index.search(query: query) }
+        guard let section else { return index.search(query: query).filter { !$0.isHidden } }
         switch section {
-        case .all: return index.search(query: query)
-        case .favorites: return index.search(query: query, favoritesOnly: true)
+        case .all: return index.search(query: query).filter { !$0.isHidden }
+        case .favorites: return index.search(query: query, favoritesOnly: true).filter { !$0.isHidden }
         case .group(let id): return index.search(query: query, groupID: id)
-        case .tag(let t): return index.search(query: query, tag: t)
+        case .tag(let t): return index.search(query: query, tag: t).filter { !$0.isHidden }
         }
     }
 
@@ -73,6 +77,9 @@ struct MainView: View {
         }
         .navigationTitle("Coffer")
         .searchable(text: $query, placement: .toolbar, prompt: "搜索标题 / 标签 / 地址")
+        .onChange(of: section) { oldValue, newValue in
+            handleSectionChange(from: oldValue, to: newValue)
+        }
         .toolbar {
             ToolbarItem {
                 Button {
@@ -108,6 +115,24 @@ struct MainView: View {
             }
         } message: { confirmation in
             Text("将「\(confirmation.entryTitle)」拖入新分组")
+        }
+        .alert("验证隐藏分组", isPresented: $showingHiddenGroupAuth) {
+            SecureField("密码", text: $hiddenGroupPassword)
+            Button("取消", role: .cancel) {
+                section = .all
+                hiddenGroupPassword = ""
+            }
+            Button("使用 Touch ID") {
+                authenticateWithBiometry()
+            }
+            Button("解锁") {
+                authenticateWithPassword()
+            }
+        } message: {
+            if let groupID = pendingHiddenGroup,
+               let group = unlock.document?.groups.first(where: { $0.id == groupID }) {
+                Text("「\(group.name)」需要验证")
+            }
         }
         .alert("删除条目", isPresented: Binding(
             get: { deleteConfirmation != nil },
@@ -176,6 +201,61 @@ struct MainView: View {
     private func stopFileMonitoring() {
         fileMonitor?.cancel()
         fileMonitor = nil
+    }
+
+    private func handleSectionChange(from oldValue: SidebarSection?, to newValue: SidebarSection?) {
+        guard case .group(let groupID) = newValue,
+              let group = unlock.document?.groups.first(where: { $0.id == groupID }),
+              group.isHidden else {
+            return
+        }
+
+        // 用户点击了隐藏分组，需要验证
+        pendingHiddenGroup = groupID
+        showingHiddenGroupAuth = true
+        section = oldValue  // 暂时恢复到旧状态
+    }
+
+    private func authenticateWithBiometry() {
+        let context = LAContext()
+        var error: NSError?
+
+        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
+            print("生物识别不可用: \(error?.localizedDescription ?? "")")
+            return
+        }
+
+        context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: "访问隐藏分组") { success, error in
+            DispatchQueue.main.async {
+                if success {
+                    if let groupID = pendingHiddenGroup {
+                        section = .group(groupID)
+                    }
+                    showingHiddenGroupAuth = false
+                    hiddenGroupPassword = ""
+                    pendingHiddenGroup = nil
+                } else {
+                    section = .all
+                }
+            }
+        }
+    }
+
+    private func authenticateWithPassword() {
+        guard let groupID = pendingHiddenGroup,
+              let group = unlock.document?.groups.first(where: { $0.id == groupID }) else {
+            return
+        }
+
+        if group.verifyPassword(hiddenGroupPassword) {
+            section = .group(groupID)
+            showingHiddenGroupAuth = false
+            hiddenGroupPassword = ""
+            pendingHiddenGroup = nil
+        } else {
+            // 密码错误，保持对话框打开
+            hiddenGroupPassword = ""
+        }
     }
 
     private func performDrag(confirmation: DragConfirmation, action: DragAction) {

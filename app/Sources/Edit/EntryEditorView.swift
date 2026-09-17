@@ -367,7 +367,7 @@ struct EntryEditorView: View {
 
         var entry = editing ?? Entry(
             id: UUID(), type: type, title: "", subtitle: "", groupIDs: [],
-            tags: [], isFavorite: false, permissionNote: "", customFields: [],
+            tags: [], isFavorite: false, isHidden: false, permissionNote: "", customFields: [],
             createdAt: Date(), updatedAt: Date(), payload: payload)
         entry.type = type
         entry.title = title

@@ -13,6 +13,14 @@ struct SidebarView: View {
         Array(Set((unlock.document?.entries ?? []).flatMap(\.tags))).sorted()
     }
 
+    private var normalGroups: [CofferCore.Group] {
+        (unlock.document?.groups ?? []).filter { !$0.isHidden }
+    }
+
+    private var hiddenGroups: [CofferCore.Group] {
+        (unlock.document?.groups ?? []).filter { $0.isHidden }
+    }
+
     var body: some View {
         List(selection: $section) {
             Section {
@@ -20,7 +28,7 @@ struct SidebarView: View {
                 Label("收藏", systemImage: "star").tag(SidebarSection.favorites)
             }
             Section {
-                ForEach(unlock.document?.groups ?? []) { group in
+                ForEach(normalGroups) { group in
                     Label(group.name, systemImage: group.symbolName)
                         .tag(SidebarSection.group(group.id))
                         .dropDestination(for: String.self) { items, _ in
@@ -42,6 +50,28 @@ struct SidebarView: View {
                     }
                     .buttonStyle(.plain)
                     .padding(.trailing, 16)
+                }
+            }
+            if !hiddenGroups.isEmpty {
+                Section {
+                    ForEach(hiddenGroups) { group in
+                        Label(group.name, systemImage: group.symbolName)
+                            .tag(SidebarSection.group(group.id))
+                            .contextMenu {
+                                Button("删除", role: .destructive) {
+                                    deleteGroup(group)
+                                }
+                            }
+                    }
+                } header: {
+                    HStack {
+                        Text("隐藏分组")
+                        Spacer()
+                        Image(systemName: "lock.fill")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.trailing, 16)
+                    }
                 }
             }
             if !allTags.isEmpty {

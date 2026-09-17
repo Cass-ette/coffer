@@ -401,6 +401,7 @@ func addEntry(args: [String]) async throws {
         groupIDs: groupID.map { [$0] } ?? [],
         tags: tags,
         isFavorite: isFavorite,
+        isHidden: false,
         permissionNote: permissionNote,
         customFields: [],
         createdAt: Date(),
@@ -500,6 +501,13 @@ func updateEntry(args: [String]) async throws {
         case "--subtitle":
             guard i + 1 < updateArgs.count else { throw NSError(domain: "CofferCLI", code: 2, userInfo: [NSLocalizedDescriptionKey: "--subtitle requires a value"]) }
             entry.subtitle = updateArgs[i + 1]
+            i += 2
+        case "--group":
+            guard i + 1 < updateArgs.count else { throw NSError(domain: "CofferCLI", code: 2, userInfo: [NSLocalizedDescriptionKey: "--group requires a value"]) }
+            let groupName = updateArgs[i + 1]
+            if let group = doc.groups.first(where: { $0.name == groupName }) {
+                entry.groupIDs = [group.id]
+            }
             i += 2
         case "--favorite":
             entry.isFavorite = true
