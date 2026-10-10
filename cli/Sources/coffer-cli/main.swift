@@ -325,6 +325,10 @@ func printPayload(_ payload: EntryPayload) {
     case .secureNote(let p):
         print("  Body: [HIDDEN - \(p.body.count) chars]")
         print("  Attachments: \(p.attachments.count)")
+    case .wallet:
+        print("   [钱包条目，详情请在 App 中查看]")
+    case .unknown:
+        print("   [未知类型条目，内容已保留]")
     }
 }
 
@@ -463,6 +467,12 @@ func buildPayload(type: EntryType, args: [String: String]) throws -> EntryPayloa
     case .secureNote:
         let body = args["body"] ?? ""
         return .secureNote(SecureNotePayload(body: body, attachments: []))
+    case .wallet:
+        throw NSError(domain: "CofferCLI", code: 1,
+                      userInfo: [NSLocalizedDescriptionKey: "wallet 条目请在 App 内创建（含助记词展示确认流程）"])
+    case .unknown:
+        throw NSError(domain: "CofferCLI", code: 1,
+                      userInfo: [NSLocalizedDescriptionKey: "未知类型条目不可由 CLI 创建"])
     }
 }
 

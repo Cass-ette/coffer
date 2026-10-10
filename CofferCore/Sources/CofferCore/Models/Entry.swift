@@ -9,6 +9,7 @@ public enum EntryType: String, Codable, Sendable, CaseIterable {
     case totp
     case secureNote = "secure_note"
     case wallet
+    case unknown
 }
 
 public struct CustomField: Codable, Hashable, Sendable {
@@ -128,9 +129,24 @@ public struct WalletPayload: Codable, Hashable, Sendable {
         self.secret = secretKind == .watchOnly ? nil : secret
         self.derivationPath = derivationPath; self.note = note
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case chain, address, secretKind, secret, derivationPath, note
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(chain: try container.decode(Chain.self, forKey: .chain),
+                  address: try container.decode(String.self, forKey: .address),
+                  secretKind: try container.decode(SecretKind.self, forKey: .secretKind),
+                  secret: try container.decodeIfPresent(String.self, forKey: .secret),
+                  derivationPath: try container.decodeIfPresent(String.self, forKey: .derivationPath),
+                  note: try container.decodeIfPresent(String.self, forKey: .note))
+    }
 }
 
-/// 关联值枚举的 Codable 由 Swift 5.5+ 自动合成（按 case 名 keyed 编码）
+/// Known cases keep Swift's synthesized {"case":{"_0":payload}} disk shape.
+/// Unknown cases retain their JSON structure for lossless round-tripping.
 public enum EntryPayload: Codable, Hashable, Sendable {
     case login(LoginPayload)
     case access(AccessPayload)
@@ -140,6 +156,75 @@ public enum EntryPayload: Codable, Hashable, Sendable {
     case totp(TOTPPayload)
     case secureNote(SecureNotePayload)
     case wallet(WalletPayload)
+    case unknown(RawJSON)
+
+    public init(from decoder: Decoder) throws {
+        let dict = try decoder.singleValueContainer().decode([String: RawJSON].self)
+        self = .unknown(.object(dict))
+        if let value = dict["login"], case .object(let inner) = value,
+           let zero = inner["_0"], let data = zero.jsonData,
+           let payload = try? JSONDecoder().decode(LoginPayload.self, from: data) {
+            self = .login(payload); return
+        }
+        if let value = dict["access"], case .object(let inner) = value,
+           let zero = inner["_0"], let data = zero.jsonData,
+           let payload = try? JSONDecoder().decode(AccessPayload.self, from: data) {
+            self = .access(payload); return
+        }
+        if let value = dict["apiKey"], case .object(let inner) = value,
+           let zero = inner["_0"], let data = zero.jsonData,
+           let payload = try? JSONDecoder().decode(APIKeyPayload.self, from: data) {
+            self = .apiKey(payload); return
+        }
+        if let value = dict["sshKey"], case .object(let inner) = value,
+           let zero = inner["_0"], let data = zero.jsonData,
+           let payload = try? JSONDecoder().decode(SSHKeyPayload.self, from: data) {
+            self = .sshKey(payload); return
+        }
+        if let value = dict["database"], case .object(let inner) = value,
+           let zero = inner["_0"], let data = zero.jsonData,
+           let payload = try? JSONDecoder().decode(DatabasePayload.self, from: data) {
+            self = .database(payload); return
+        }
+        if let value = dict["totp"], case .object(let inner) = value,
+           let zero = inner["_0"], let data = zero.jsonData,
+           let payload = try? JSONDecoder().decode(TOTPPayload.self, from: data) {
+            self = .totp(payload); return
+        }
+        if let value = dict["secureNote"], case .object(let inner) = value,
+           let zero = inner["_0"], let data = zero.jsonData,
+           let payload = try? JSONDecoder().decode(SecureNotePayload.self, from: data) {
+            self = .secureNote(payload); return
+        }
+        if let value = dict["wallet"], case .object(let inner) = value,
+           let zero = inner["_0"], let data = zero.jsonData,
+           let payload = try? JSONDecoder().decode(WalletPayload.self, from: data) {
+            self = .wallet(payload); return
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .login(let p): try container.encode(Self.wrap("login", p))
+        case .access(let p): try container.encode(Self.wrap("access", p))
+        case .apiKey(let p): try container.encode(Self.wrap("apiKey", p))
+        case .sshKey(let p): try container.encode(Self.wrap("sshKey", p))
+        case .database(let p): try container.encode(Self.wrap("database", p))
+        case .totp(let p): try container.encode(Self.wrap("totp", p))
+        case .secureNote(let p): try container.encode(Self.wrap("secureNote", p))
+        case .wallet(let p): try container.encode(Self.wrap("wallet", p))
+        case .unknown(let raw): try container.encode(raw)
+        }
+    }
+
+    private static func wrap<P: Encodable>(_ key: String, _ payload: P) throws -> [String: RawJSON] {
+        let raw = try JSONEncoder().encode(payload)
+        guard let value = RawJSON.from(raw) else {
+            throw EncodingError.invalidValue(payload, .init(codingPath: [], debugDescription: "Payload is not JSON"))
+        }
+        return [key: .object(["_0": value])]
+    }
 }
 
 public struct Group: Codable, Hashable, Identifiable, Sendable {
@@ -172,6 +257,7 @@ public struct Group: Codable, Hashable, Identifiable, Sendable {
 public struct Entry: Codable, Hashable, Identifiable, Sendable {
     public var id: UUID
     public var type: EntryType
+    public var degradedTypeRaw: String?
     public var title: String
     public var subtitle: String
     public var groupIDs: [UUID]
@@ -187,7 +273,8 @@ public struct Entry: Codable, Hashable, Identifiable, Sendable {
     public init(id: UUID = UUID(), type: EntryType, title: String, subtitle: String,
                 groupIDs: [UUID], tags: [String], isFavorite: Bool, isHidden: Bool, permissionNote: String,
                 customFields: [CustomField], createdAt: Date, updatedAt: Date, payload: EntryPayload) {
-        self.id = id; self.type = type; self.title = title; self.subtitle = subtitle
+        self.id = id; self.type = type; self.degradedTypeRaw = nil
+        self.title = title; self.subtitle = subtitle
         self.groupIDs = groupIDs; self.tags = tags; self.isFavorite = isFavorite
         self.isHidden = isHidden; self.permissionNote = permissionNote; self.customFields = customFields
         self.createdAt = createdAt; self.updatedAt = updatedAt; self.payload = payload
@@ -197,7 +284,14 @@ public struct Entry: Codable, Hashable, Identifiable, Sendable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
-        type = try container.decode(EntryType.self, forKey: .type)
+        let rawType = try container.decode(String.self, forKey: .type)
+        if let known = EntryType(rawValue: rawType) {
+            type = known
+            degradedTypeRaw = try container.decodeIfPresent(String.self, forKey: .degradedTypeRaw)
+        } else {
+            type = .unknown
+            degradedTypeRaw = rawType
+        }
         title = try container.decode(String.self, forKey: .title)
         subtitle = try container.decode(String.self, forKey: .subtitle)
 
@@ -223,7 +317,8 @@ public struct Entry: Codable, Hashable, Identifiable, Sendable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
-        try container.encode(type, forKey: .type)
+        try container.encode(type == .unknown ? degradedTypeRaw ?? type.rawValue : type.rawValue, forKey: .type)
+        try container.encodeIfPresent(degradedTypeRaw, forKey: .degradedTypeRaw)
         try container.encode(title, forKey: .title)
         try container.encode(subtitle, forKey: .subtitle)
         try container.encode(groupIDs, forKey: .groupIDs)
@@ -238,7 +333,7 @@ public struct Entry: Codable, Hashable, Identifiable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, type, title, subtitle, groupID, groupIDs, tags, isFavorite, isHidden
+        case id, type, degradedTypeRaw, title, subtitle, groupID, groupIDs, tags, isFavorite, isHidden
         case permissionNote, customFields, createdAt, updatedAt, payload
     }
 }

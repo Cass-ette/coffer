@@ -47,6 +47,10 @@ struct EntryDetailView: View {
                           systemImage: entry.isHidden ? "eye" : "eye.slash")
                 }
                 Button("编辑") { editing = true }
+                    .disabled(entry.type == .unknown || {
+                        if case .unknown = entry.payload { return true }
+                        return false
+                    }())
                 Button(role: .destructive) {
                     deleteConfirmation = DeleteConfirmation(
                         entry: entry,
@@ -189,6 +193,12 @@ struct EntryDetailView: View {
         case .secureNote(let p):
             add("内容", p.body, secret: true)
             p.attachments.forEach { add("附件", $0.fileName) }
+        case .wallet(let p):
+            add("地址", p.address, mono: true)
+            add("链", p.chain.rawValue)
+            p.note.map { add("备注", $0) }
+        case .unknown:
+            add("状态", "内容已保留（来自更新版本）")
         }
         entry.customFields.forEach { add($0.name, $0.value, secret: $0.isSensitive) }
         return rows

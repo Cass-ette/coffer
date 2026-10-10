@@ -45,6 +45,10 @@ enum CopyTargets {
                     CopyTarget(label: "种子", value: p.secretBase32)]
         case .secureNote:
             return []
+        case .wallet(let p):
+            return [CopyTarget(label: "地址", value: p.address)]
+        case .unknown:
+            return []
         }
     }
 

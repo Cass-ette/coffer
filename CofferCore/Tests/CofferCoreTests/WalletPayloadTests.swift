@@ -33,6 +33,16 @@ final class WalletPayloadTests: XCTestCase {
         XCTAssertNil(p.secret)
     }
 
+    /// 解码同样维持 watchOnly ⇒ 无 secret 不变量：合成 Codable 会绕过 init 归一化，
+    /// watchOnly + 非 nil secret 的（旧/损坏）数据不允许把 secret 带出来。
+    func testWatchOnlyDecodeNormalizesSecret() throws {
+        let json = #"{"chain":"tron","address":"TUEZSdKsoDHQMeZwihtdoBiN46zxhGWYdH","secretKind":"watchOnly","secret":"leak","derivationPath":null,"note":null}"#
+        let p = try JSONDecoder().decode(WalletPayload.self, from: Data(json.utf8))
+        XCTAssertNil(p.secret, "watchOnly 解码后 secret 必须为 nil")
+        XCTAssertEqual(p.secretKind, .watchOnly)
+        XCTAssertEqual(p.address, "TUEZSdKsoDHQMeZwihtdoBiN46zxhGWYdH")
+    }
+
     func testWalletTypeRawValue() {
         XCTAssertEqual(EntryType.wallet.rawValue, "wallet")
     }

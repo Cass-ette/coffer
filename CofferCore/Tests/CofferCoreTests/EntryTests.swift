@@ -37,9 +37,17 @@ final class EntryTests: XCTestCase {
         }
     }
 
-    func testUnknownEntryTypeThrows() {
-        let json = #"{"id":"\#(UUID().uuidString)","type":"wat","title":"x","subtitle":"","groupID":null,"tags":[],"isFavorite":false,"permissionNote":"","customFields":[],"createdAt":0.0,"updatedAt":0.0,"payload":{"login":{"username":"a","password":"b","urls":[]}}}"#
-        XCTAssertThrowsError(try JSONDecoder().decode(Entry.self, from: Data(json.utf8)))
+    /// 数据安全核心：未知 type 不再抛错（历史丢库机制），降级为 .unknown
+    /// 并保留原始字符串；payload 照常解码；再编码不丢 degradedTypeRaw。
+    func testUnknownTypeDegradesAndRoundtrips() throws {
+        let json = #"{"id":"\#(UUID().uuidString)","type":"wat","title":"x","subtitle":"","groupID":null,"tags":[],"isFavorite":false,"permissionNote":"","customFields":[],"createdAt":0.0,"updatedAt":0.0,"payload":{"login":{"_0":{"username":"a","password":"b","urls":[]}}}}"#
+        let e = try JSONDecoder().decode(Entry.self, from: Data(json.utf8))
+        XCTAssertEqual(e.title, "x")
+        XCTAssertEqual(e.type, .unknown)
+        XCTAssertEqual(e.degradedTypeRaw, "wat")
+        if case .login(let p) = e.payload { XCTAssertEqual(p.username, "a") }
+        let back = try JSONDecoder().decode(Entry.self, from: JSONEncoder().encode(e))
+        XCTAssertEqual(back.degradedTypeRaw, "wat")
     }
 }
 

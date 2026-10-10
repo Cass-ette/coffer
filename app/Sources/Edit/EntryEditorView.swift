@@ -100,6 +100,8 @@ struct EntryEditorView: View {
         case .secureNote(let p):
             _noteBody = State(initialValue: p.body)
             _attachments = State(initialValue: p.attachments)
+        case .wallet, .unknown:
+            break
         }
     }
 
@@ -108,7 +110,7 @@ struct EntryEditorView: View {
             Section("基本信息") {
                 if editing == nil {
                     Picker("类型", selection: $type) {
-                        ForEach(EntryType.allCases, id: \.self) { t in
+                        ForEach(EntryType.allCases.filter { $0 != .unknown }, id: \.self) { t in
                             Text(t.label).tag(t)
                         }
                     }
@@ -275,6 +277,12 @@ struct EntryEditorView: View {
                 Button("添加附件（≤2MB，至多 5 张）") { showFileImporter = true }
                     .disabled(attachments.count >= maxAttachmentCount)
             }
+        case .wallet:
+            Section("钱包") { Text("钱包表单正在接入") }
+        case .unknown:
+            Section("未知类型") {
+                Text("此条目来自更新版本的 Coffer，内容已保留但不可编辑")
+            }
         }
     }
 
@@ -363,6 +371,12 @@ struct EntryEditorView: View {
             payload = .totp(p)
         case .secureNote:
             payload = .secureNote(SecureNotePayload(body: noteBody, attachments: attachments))
+        case .wallet:
+            error = "钱包表单正在接入"
+            return
+        case .unknown:
+            error = "此条目来自更新版本的 Coffer，内容已保留但不可编辑"
+            return
         }
 
         var entry = editing ?? Entry(

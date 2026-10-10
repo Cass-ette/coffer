@@ -11,6 +11,8 @@ extension EntryType {
         case .database: return "cylinder"
         case .totp: return "timer"
         case .secureNote: return "note.text"
+        case .wallet: return "bitcoinsign.circle"
+        case .unknown: return "questionmark.square"
         }
     }
 
@@ -23,6 +25,8 @@ extension EntryType {
         case .database: return "数据库"
         case .totp: return "验证码"
         case .secureNote: return "安全笔记"
+        case .wallet: return "钱包"
+        case .unknown: return "未知类型"
         }
     }
 }

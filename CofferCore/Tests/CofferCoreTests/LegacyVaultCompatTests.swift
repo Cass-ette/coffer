@@ -68,4 +68,28 @@ final class LegacyVaultCompatTests: XCTestCase {
         XCTAssertEqual(back.entries.filter { $0.type == .wallet }.count, 1)
         XCTAssertEqual(back.entries.filter { $0.type == .login }.count, 1)
     }
+
+    /// payload 未知 case：原文完整保留，再编码不丢
+    func testUnknownPayloadRoundtrip() throws {
+        let json = """
+        {"id":"00000000-0000-4000-8000-000000000000","type":"login","title":"future",
+        "subtitle":"","groupIDs":[],"tags":[],"isFavorite":false,"isHidden":false,
+        "permissionNote":"","customFields":[],"createdAt":0.0,"updatedAt":0.0,
+        "payload":{"future_thing":{"a":1,"nested":["x","y"]}}}
+        """
+        let e = try JSONDecoder().decode(Entry.self, from: Data(json.utf8))
+        if case .unknown = e.payload { } else { XCTFail("应降级为 unknown") }
+        let out = String(data: try JSONEncoder().encode(e), encoding: .utf8)!
+        XCTAssertTrue(out.contains("future_thing"), "再编码必须保留原始键")
+        XCTAssertTrue(out.contains("nested"))
+    }
+
+    /// 磁盘格式黄金测试：自定义 Codable 必须复刻 Swift 合成格式 {"case名":{"_0":{...}}}
+    func testPayloadEncodesSynthesizedShape() throws {
+        let w = EntryPayload.wallet(WalletPayload(chain: .tron, address: "TUEZSdKsoDHQMeZwihtdoBiN46zxhGWYdH",
+                                                  secretKind: .watchOnly, secret: nil,
+                                                  derivationPath: nil, note: nil))
+        let s = String(data: try JSONEncoder().encode(w), encoding: .utf8)!
+        XCTAssertTrue(s.contains(#""wallet":{"_0""#), "实际: \(s)")
+    }
 }
