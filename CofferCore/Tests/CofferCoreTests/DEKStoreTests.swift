@@ -13,7 +13,9 @@ final class DEKStoreTests: XCTestCase {
         // Unsigned test process can't carry ACL entitlement (-34018), auto-skip
         // Real ACL read deferred to packaged manual validation (Task 12/20)
 
-        let store = SystemDEKStore()
+        // Never use the live vault's service: this test deletes its keychain item.
+        let store = SystemDEKStore(service: "cc.cassette.coffer.tests.\(UUID().uuidString)")
+        defer { try? store.delete() }
         let testDEK = SymmetricKey(data: Data(repeating: 0xAB, count: 32))
 
         // First, clean up any existing entry from previous test runs
