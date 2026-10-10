@@ -110,7 +110,7 @@ vault AES-GCM 密文（磁盘）
 | 转账（构建/模拟/广播） | `/wallet/triggersmartcontract`、`broadcasttransaction` |
 | 费率 | `/wallet/getchainparameters`（能量燃烧价等动态参数） |
 
-- USDT 合约地址常量：`TR7NHqjeKQxGTCi8q8ZY4QL5knYg7dVgX7`（主网唯一，硬编码合理）。
+- USDT 合约地址常量：`TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t`（主网唯一，硬编码合理；hex `41a614f803b6fd780986a42c78ec9c7f77e6ded13c`，2026-10-10 实测核验）。
 - API key 存 AppSettings（非机密级，泄露仅影响限额）；所有请求 10s 超时。
 
 ### 5.3 手续费与金额精度：查询而非硬编码
