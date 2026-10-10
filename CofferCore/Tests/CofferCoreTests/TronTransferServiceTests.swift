@@ -19,10 +19,14 @@ final class TronTransferServiceTests: XCTestCase {
         var stubs: [String: Data] = [:]
         var posted: [(path: String, body: [String: Any], headers: [String: String])] = []
         var failurePath: String?
+        var balanceResponse = Data()
 
         func post(_ path: String, body: [String: Any], headers: [String: String]) async throws -> Data {
             posted.append((path, body, headers))
             if failurePath == path { throw URLError(.timedOut) }
+            if path == "/wallet/triggerconstantcontract", body["function_selector"] as? String == "balanceOf(address)" {
+                return balanceResponse
+            }
             return stubs[path] ?? Data()
         }
         func get(_ path: String, headers: [String: String]) async throws -> Data {
@@ -38,6 +42,10 @@ final class TronTransferServiceTests: XCTestCase {
         """.utf8)
         mock.stubs["/wallet/getaccountresource"] = Data("""
         {"freeNetLimit":\(freeLimit),"freeNetUsed":\(freeUsed)}
+        """.utf8)
+        let hex = String(usdt, radix: 16)
+        mock.balanceResponse = Data("""
+        {"result":{"result":true},"constant_result":["\(String(repeating: "0", count: 64 - hex.count))\(hex)"]}
         """.utf8)
     }
 
@@ -128,7 +136,8 @@ final class TronTransferServiceTests: XCTestCase {
         } catch let error as TransferValidationError {
             XCTAssertEqual(error, .insufficientUSDT)
         }
-        XCTAssertTrue(mock.posted.isEmpty)
+        XCTAssertEqual(mock.posted.count, 1)
+        XCTAssertEqual(mock.posted.first?.body["function_selector"] as? String, "balanceOf(address)")
     }
 
     func testInsufficientTRXForFeeRejected() async throws {

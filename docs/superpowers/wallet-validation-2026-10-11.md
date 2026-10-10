@@ -1,13 +1,13 @@
 # 钱包验收记录（2026-10-11）
 
 分支：`feature/wallet`。T0–T11 的代码已实现；T8/T11 真机手测与 T12 恢复演练待用户在场完成。
-目前未向主网广播真实转账，未替换真实 vault，未改动 `~/Documents/CofferBackups/vault-20261010-prewallet.*`。
+目前未通过 Coffer 向主网广播真实转账，未替换真实 vault，未改动 `~/Documents/CofferBackups/vault-20261010-prewallet.*`。
 
 ## 自动验证
 
 | 检查 | 结果 |
 |---|---|
-| `cd CofferCore && swift test` | 98 项通过，0 失败；原基线 68 项保留 |
+| `cd CofferCore && swift test` | 102 项通过，0 失败；原基线 68 项保留 |
 | `TronTransferServiceTests` | 14 项通过，包含金额精度、余额/费用不足、实际签名字节核对、广播拒绝与未知状态 |
 | App Debug 构建 | `xcodebuild -scheme Coffer -configuration Debug -derivedDataPath .build build` 成功；依赖及存量 Sendable 警告仍在 |
 | CLI 构建 | `cd cli && swift build` 成功 |
@@ -24,6 +24,7 @@ TronGrid 只读冒烟使用公开黄金地址 `TUEZSdKsoDHQMeZwihtdoBiN46zxhGWYd
 
 ## 实现中对骨架的必要修正
 
+- USDT 余额改为直接调用合约的 `balanceOf(address)`。真实入账手测发现，新地址尚未激活时，`/v1/accounts/{address}` 返回空数组，但合约已持有 USDT；账户索引也可能延迟。不能把空账户或合约查询失败当成零余额。网络请求绕过本机 HTTP 缓存。
 - 账户资源取自 POST `/wallet/getaccountresource`，不是 `/v1/accounts/{address}`；资源用量为零时节点可以省略该字段。
 - 免费带宽不足以覆盖整笔交易时，TRON 按整笔字节计费，而非仅计超出免费额度的差额。
   依据：[java-tron BandwidthProcessor 的 useFreeNet/useTransactionFee](https://github.com/tronprotocol/java-tron/blob/develop/chainbase/src/main/java/org/tron/core/db/BandwidthProcessor.java)。
@@ -36,6 +37,11 @@ TronGrid 只读冒烟使用公开黄金地址 `TUEZSdKsoDHQMeZwihtdoBiN46zxhGWYd
 TronKit 平台与验证接口差异见 [README-COFFER.md](../../Vendor/TronKit/README-COFFER.md)。
 
 ## 用户手测（待完成）
+
+已核对一笔由外部钱包转入的交易：主网 USDT 合约执行 `SUCCESS`，实际转入 3.500000 USDT。
+当时收款地址的账户查询为 `data: []`，合约 `balanceOf` 为 3,500,000 最小单位，复现了 UI 零余额问题。
+已先补失败测试再修复，增加未激活账户、索引延迟、无效响应和整数精度四项回归；修复版已重新构建，待用户确认界面刷新。
+交易哈希与用户钱包地址不写入仓库。
 
 开始前保存编辑并退出旧版 Coffer，只打开本分支生成的 `.build/Build/Products/Debug/Coffer.app`。
 

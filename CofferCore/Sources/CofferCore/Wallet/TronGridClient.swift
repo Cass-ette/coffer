@@ -1,4 +1,5 @@
 import Foundation
+import TronKit
 
 public protocol HTTPProviding {
     func post(_ path: String, body: [String: Any], headers: [String: String]) async throws -> Data
@@ -14,7 +15,8 @@ public final class URLSessionHTTP: HTTPProviding {
     }
 
     public func post(_ path: String, body: [String: Any], headers: [String: String]) async throws -> Data {
-        var request = URLRequest(url: base.appendingPathComponent(path), timeoutInterval: 10)
+        var request = URLRequest(url: base.appendingPathComponent(path),
+                                 cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
@@ -23,7 +25,8 @@ public final class URLSessionHTTP: HTTPProviding {
     }
 
     public func get(_ path: String, headers: [String: String]) async throws -> Data {
-        var request = URLRequest(url: base.appendingPathComponent(path), timeoutInterval: 10)
+        var request = URLRequest(url: base.appendingPathComponent(path),
+                                 cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)
         headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
         return try await run(request)
     }
@@ -60,12 +63,13 @@ public struct CachedTronBalances: Equatable, Sendable {
 }
 
 public enum TronGridError: LocalizedError, Equatable {
-    case http(Int), badResponse
+    case http(Int), badResponse, invalidAddress
     public var errorDescription: String? {
         switch self {
         case .http(429): return "TronGrid 请求过于频繁，请稍后重试或在设置中填写 API key"
         case .http(let code): return "TronGrid 请求失败（HTTP \(code)），请稍后重试"
         case .badResponse: return "TronGrid 返回的数据无效，请稍后重试"
+        case .invalidAddress: return "Tron 地址或校验位无效"
         }
     }
 }
@@ -81,10 +85,11 @@ public final class TronGridClient {
     }
 
     public func balances(address: String) async throws -> TronBalances {
+        guard TronWalletService().validateAddress(address),
+              let parsed = try? Address(address: address) else { throw TronGridError.invalidAddress }
         let data = try await http.get("/v1/accounts/\(address)", headers: headers)
         struct Account: Decodable {
             let balance: Int64?
-            let trc20: [[String: String]]?
         }
         struct Response: Decodable {
             let success: Bool
@@ -93,16 +98,31 @@ public final class TronGridClient {
         guard let response = try? JSONDecoder().decode(Response.self, from: data), response.success else {
             throw TronGridError.badResponse
         }
-        guard let account = response.data.first else { return .init(trxBalance: 0, usdtSun: 0) }
-        let trx = account.balance ?? 0
-        var usdt: Int64 = 0
-        for row in account.trc20 ?? [] {
-            if let value = row[usdtContract] {
-                guard let amount = Int64(value), amount >= 0 else { throw TronGridError.badResponse }
-                usdt = amount
-            }
-        }
+        let trx = response.data.first?.balance ?? 0
         guard trx >= 0 else { throw TronGridError.badResponse }
+
+        // An unactivated account can receive USDT while /v1/accounts still returns data: [].
+        // Read the token contract even when the native account is absent; its index can also lag.
+        let addressHex = parsed.nonPrefixed.map { String(format: "%02x", $0) }.joined()
+        let tokenData = try await http.post("/wallet/triggerconstantcontract", body: [
+            "owner_address": address,
+            "contract_address": usdtContract,
+            "function_selector": "balanceOf(address)",
+            "parameter": String(repeating: "0", count: 24) + addressHex,
+            "visible": true
+        ], headers: headers)
+        struct ConstantResponse: Decodable {
+            struct Result: Decodable { let result: Bool }
+            let result: Result
+            let constant_result: [String]
+        }
+        guard let token = try? JSONDecoder().decode(ConstantResponse.self, from: tokenData),
+              token.result.result, token.constant_result.count == 1,
+              let word = token.constant_result.first, word.utf8.count == 64,
+              word.utf8.allSatisfy({ (48...57).contains($0) || (65...70).contains($0) || (97...102).contains($0) }),
+              let usdt = Int64(word, radix: 16), usdt >= 0 else {
+            throw TronGridError.badResponse
+        }
         return TronBalances(trxBalance: trx, usdtSun: usdt)
     }
 

@@ -8,7 +8,7 @@
 ## 1. 当前状态（2026-10-11）
 
 - 仓库：`~/Projects/coffer`，**工作分支 `feature/wallet`**（从 main 拉出，后续任务都在这个分支提交）
-- CofferCore 当前回归：**98/98 绿**（`cd CofferCore && swift test`，原 68 项保留）
+- CofferCore 当前回归：**102/102 绿**（`cd CofferCore && swift test`，原 68 项保留）
 - 已完成代码：
   - **T0** 修测试套件（`d84c3f4`）：groupIDs/isHidden 签名演进没同步测试导致编译失败，已修
   - **T1** WalletPayload 数据模型（`d17205e`）：EntryType.wallet + EntryPayload.wallet + WalletPayload struct + SearchIndex 只搜地址不搜 secret
@@ -19,6 +19,7 @@
 - App 与 CLI 构建成功；CLI 只读统计真实库 **148 条**（真机手测前）
 - **仍待人工验收**：T8/T9/T11 手测、小额主网转账、T12 冷备份恢复演练。用户已确认开始手测，当前已打开项目 `.build/Build/Products/Debug/Coffer.app`，不能标记全计划完成
 - 最新结果、与骨架的必要差异及待办见 [钱包验收记录](../wallet-validation-2026-10-11.md)
+- 入账手测发现新地址账户接口为空却已持有 USDT；已改为直接查询 `balanceOf(address)` 并通过 102 项回归、App/CLI 构建。链上核对实际入账 3.500000 USDT，修复版 UI 待用户确认
 
 ## 2. 剩余任务（全部在计划文档里有完整代码）
 
