@@ -1,0 +1,10 @@
+# Xcode
+.bundle/
+build/*
+Pods/*
+xcuserdata
+!Podfile.lock
+.idea/
+.build/
+.swiftpm
+Package.resolved
