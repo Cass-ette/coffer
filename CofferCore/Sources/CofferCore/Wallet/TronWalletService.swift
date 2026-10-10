@@ -50,7 +50,19 @@ public final class TronWalletService {
               normalized != String(repeating: "0", count: 64), normalized < order else {
             throw TronWalletError.badPrivateKey
         }
-        return try Signer.privateKey(string: normalized)
+        let key = try Signer.privateKey(string: normalized)
+        guard isValidPrivateKeyData(key) else { throw TronWalletError.badPrivateKey }
+        return key
+    }
+
+    /// Check a secp256k1 scalar before passing Data to TronKit's public-key routine.
+    public func isValidPrivateKeyData(_ key: Data) -> Bool {
+        let order = Data([0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                          0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe,
+                          0xba, 0xae, 0xdc, 0xe6, 0xaf, 0x48, 0xa0, 0x3b,
+                          0xbf, 0xd2, 0x5e, 0x8c, 0xd0, 0x36, 0x41, 0x41])
+        return key.count == 32 && key.contains(where: { $0 != 0 })
+            && key.lexicographicallyPrecedes(order)
     }
 
     public func address(fromPrivateKey hex: String) throws -> String {
