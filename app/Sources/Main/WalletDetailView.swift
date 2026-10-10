@@ -20,6 +20,7 @@ struct WalletDetailSection: View {
     @State private var refreshTask: Task<Void, Never>?
     @State private var showingReceive = false
     @State private var showingSecret = false
+    @State private var showingTransfer = false
     @State private var revealedSecret: String?
 
     var body: some View {
@@ -47,6 +48,8 @@ struct WalletDetailSection: View {
             HStack {
                 Button("刷新", systemImage: "arrow.clockwise") { refresh() }.disabled(loading)
                 Button("收款", systemImage: "qrcode") { showingReceive = true }
+                Button("转账", systemImage: "arrow.up.right") { showingTransfer = true }
+                    .disabled(secretKind == .watchOnly)
             }
             if secretKind == .watchOnly {
                 Text("此钱包未存助记词/私钥，仅可收款与查余额")
@@ -73,11 +76,17 @@ struct WalletDetailSection: View {
                 revealedSecret = nil
                 showingSecret = false
                 showingReceive = false
+                showingTransfer = false
                 refreshTask?.cancel()
             }
         }
         .sheet(isPresented: $showingReceive) {
             WalletReceiveSheet(address: address)
+        }
+        .sheet(isPresented: $showingTransfer, onDismiss: {
+            if unlock.isUnlocked { refresh() }
+        }) {
+            TransferSheet(entryID: entryID, address: address, initialBalances: cached?.balances)
         }
         .sheet(isPresented: $showingSecret, onDismiss: { revealedSecret = nil }) {
             if let revealedSecret {
