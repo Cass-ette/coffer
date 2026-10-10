@@ -8,27 +8,25 @@
 ## 1. 当前状态（2026-10-11）
 
 - 仓库：`~/Projects/coffer`，**工作分支 `feature/wallet`**（从 main 拉出，后续任务都在这个分支提交）
-- CofferCore 测试基线：**68/68 绿**（`cd CofferCore && swift test`）
-- 已完成（含两阶段审查）：
+- CofferCore 当前回归：**98/98 绿**（`cd CofferCore && swift test`，原 68 项保留）
+- 已完成代码：
   - **T0** 修测试套件（`d84c3f4`）：groupIDs/isHidden 签名演进没同步测试导致编译失败，已修
   - **T1** WalletPayload 数据模型（`d17205e`）：EntryType.wallet + EntryPayload.wallet + WalletPayload struct + SearchIndex 只搜地址不搜 secret
   - **T2** 旧 vault 兼容门（`39e32fa` + `70136ee`）：LegacyVaultCompatTests + watchOnly 归一化 + 助记词不可搜索测试
-- **⚠️ 当前 app 和 CLI 编译不过**——T1 加了 wallet case，app/cli 的穷举 switch 还没补分支。这是**预期状态**，T3 的波及修复会让它们重新可编译。不要慌，也不要在 T3 之前去"修"它。
+  - **T3–T9** 未知类型保留、CLI 只读、TronKit fork、派生/余额服务、编辑器与详情页已实现并分别提交
+  - **T10** 转账服务 `31d493e`；带宽整笔计费修正 `8f3ed23`
+  - **T11** 转账界面 `5212d9d`；独立认证、受理与未知状态、watchOnly 禁用已实现
+- App 与 CLI 构建成功；CLI 只读统计真实库 **148 条**（真机手测前）
+- **仍待人工验收**：T8/T9/T11 手测、小额主网转账、T12 冷备份恢复演练。用户已确认开始手测，当前已打开项目 `.build/Build/Products/Debug/Coffer.app`，不能标记全计划完成
+- 最新结果、与骨架的必要差异及待办见 [钱包验收记录](../wallet-validation-2026-10-11.md)
 
 ## 2. 剩余任务（全部在计划文档里有完整代码）
 
 | # | 任务 | 一句话 |
 |---|------|--------|
-| T3 | 未知类型降级 | EntryType.unknown + degradedTypeRaw + RawJSON + EntryPayload 自定义 Codable 复刻 `_0` 格式 + app/CLI 波及分支。**数据安全核心** |
-| T4 | CLI wallet 只读分支 | printPayload 加 wallet/unknown 分支，buildPayload 拒绝，secret 永不打印 |
-| T5 | Vendor TronKit fork | 见 §3.4 fork 重建说明 |
-| T6 | TronWalletService | 地址校验/助记词派生（TDD，黄金值见计划） |
-| T7 | TronGridClient | 余额查询 + 金额精度（TDD，mock 注入） |
-| T8 | 编辑器钱包表单 | 新建/导入/仅地址三模式 + 助记词抄写确认 sheet（Touch ID 门） |
-| T9 | 详情页余额 + 收款二维码 | WalletDetailView + AppSettings 两项 + SettingsView 钱包 Section |
-| T10 | 转账构建/估价 | TronTransferService（TDD，含广播成功/失败 mock 测试） |
-| T11 | TransferSheet | 三屏状态机 + Touch ID 门 + 私钥内存瞬存 |
-| T12 | 验收收尾 | README + 冷备份恢复演练（shasum 校验流程在计划里） |
+| T8/T9 | 真机手测 | 新建/导入/仅地址、余额与二维码；代码和构建已完成 |
+| T11 | 真机与主网手测 | 独立认证/取消、输入错误、用户自有钱包小额转账及 Tronscan 核对 |
+| T12 | 验收收尾 | README 已更新；恢复演练待用户在场确认，之后补齐记录并 push/开 PR |
 
 ## 3. 硬约束（违反任何一条 = 返工）
 
@@ -56,6 +54,7 @@
 - `/tmp/tronkit-fork` 是已验证的 fork，但 /tmp 重启即清空；重建方法（3 个补丁）在计划 Task 5 Step 1 里有完整说明
 - fork 复制进仓库 `Vendor/TronKit`（含 README-COFFER.md 记录 diff），CofferCore 用 `.package(path:)` 引用
 - 只用 TronKit **公开** API：`Signer.sign(hash:privateKey:)`（`signature(hash:)` 是 internal）、`Signer.address(seed:)`、`Mnemonic.*`（HdWalletKit）。txID 即待签哈希
+- T10 在 fork 新增公开 `TransactionVerifier`，复用其自带 protobuf 类型验证真实待签字节；没有手写 protobuf。差异已记入 `Vendor/TronKit/README-COFFER.md`
 
 ### 3.5 流程与提交
 
@@ -70,7 +69,7 @@
 - **T8/T11 手测**：新建钱包全流程、导入黄金助记词核对地址、转账 Touch ID 流程——需要真机操作
 - **T11 转账实测**：用户明确接受主网小额（~1 USDT）测试
 - **T12 恢复演练**：涉及替换真 vault 文件，需要用户在场确认
-- 环境备忘：登录钥匙串若残留 `cc.cassette.coffer.dek` 条目会让 DEKStoreTests 误报 errSecDuplicateItem（T0 时清过一次，签名的 app 再写还会出现——是环境问题不是代码问题）
+- 钥匙串测试已通过 `ef321d5` 改为独立随机 service，**不要为跑测试删除正式 DEK**。用户已用主密码解锁恢复过正式钥匙串项，CLI 可读
 
 ## 5. 完成定义
 
