@@ -123,7 +123,10 @@ public struct WalletPayload: Codable, Hashable, Sendable {
     public init(chain: Chain, address: String, secretKind: SecretKind,
                 secret: String?, derivationPath: String?, note: String?) {
         self.chain = chain; self.address = address; self.secretKind = secretKind
-        self.secret = secret; self.derivationPath = derivationPath; self.note = note
+        // 不变量：watchOnly 钱包不携带 secret。构造时归一化而非 crash，
+        // 避免旧/损坏数据在读取路径上炸掉整个 vault。
+        self.secret = secretKind == .watchOnly ? nil : secret
+        self.derivationPath = derivationPath; self.note = note
     }
 }
 

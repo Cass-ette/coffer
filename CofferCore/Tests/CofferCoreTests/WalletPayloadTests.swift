@@ -25,9 +25,10 @@ final class WalletPayloadTests: XCTestCase {
         } else { XCTFail("payload 不是 wallet") }
     }
 
+    /// 不变量：watchOnly 钱包不携带 secret——即使调用方误传非 nil 也被 init 归一化为 nil。
     func testWatchOnlyHasNoSecret() {
         let p = WalletPayload(chain: .tron, address: "TUEZSdKsoDHQMeZwihtdoBiN46zxhGWYdH",
-                              secretKind: .watchOnly, secret: nil,
+                              secretKind: .watchOnly, secret: "abandon abandon about",
                               derivationPath: nil, note: nil)
         XCTAssertNil(p.secret)
     }

@@ -71,12 +71,25 @@ final class SearchIndexTests: XCTestCase {
                   customFields: [
                     CustomField(name: "note", value: "secret123", isSensitive: true)
                   ], createdAt: Date(), updatedAt: Date(),
-                  payload: .login(LoginPayload(username: "user", password: "secret123", urls: [])))
+                  payload: .login(LoginPayload(username: "user", password: "secret123", urls: []))),
+            // wallet 变体：助记词（secret）绝不可搜索命中，地址（非敏感）可以。
+            Entry(id: UUID(), type: .wallet, title: "冷钱包", subtitle: "",
+                  groupIDs: [], tags: [], isFavorite: false, isHidden: false, permissionNote: "",
+                  customFields: [], createdAt: Date(), updatedAt: Date(),
+                  payload: .wallet(WalletPayload(
+                      chain: .tron, address: "TUEZSdKsoDHQMeZwihtdoBiN46zxhGWYdH",
+                      secretKind: .mnemonic,
+                      secret: "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+                      derivationPath: nil, note: nil)))
         ]
         let index = SearchIndex(entries: entries)
 
-        let results = index.search(query: "secret123")
-        XCTAssertEqual(results.count, 0)
+        // 敏感内容（密码 / 助记词）搜索不到
+        XCTAssertEqual(index.search(query: "secret123").count, 0)
+        XCTAssertEqual(index.search(query: "abandon").count, 0)
+        XCTAssertEqual(index.search(query: "abandon about").count, 0)
+        // 非敏感的地址能搜到
+        XCTAssertEqual(index.search(query: "TUEZSdKsoDHQMeZwihtdoBiN46zxhGWYdH").count, 1)
     }
 
     func testPermissionNoteLowestWeight() {
