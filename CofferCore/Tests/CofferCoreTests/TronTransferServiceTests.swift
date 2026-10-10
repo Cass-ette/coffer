@@ -82,8 +82,9 @@ final class TronTransferServiceTests: XCTestCase {
         let fee = try await TronTransferService(http: mock).estimateFee(from: Self.address, to: Self.address, usdtSun: 1_000_000)
         XCTAssertEqual(fee.energy, 64_317)
         XCTAssertEqual(fee.energyPrice, 420)
-        XCTAssertEqual(fee.bandwidthBurned, 145)
-        XCTAssertEqual(fee.feeSun, 64_317 * 420 + 145 * 1000)
+        // TRON charges all transaction bytes if the free allowance cannot cover the whole transaction.
+        XCTAssertEqual(fee.bandwidthBurned, 345)
+        XCTAssertEqual(fee.feeSun, 64_317 * 420 + 345 * 1000)
         let resourceRequest = try XCTUnwrap(mock.posted.first { $0.path == "/wallet/getaccountresource" })
         XCTAssertEqual(resourceRequest.body["address"] as? String, Self.address)
         XCTAssertEqual(resourceRequest.body["visible"] as? Bool, true)
@@ -138,7 +139,7 @@ final class TronTransferServiceTests: XCTestCase {
             _ = try await TronTransferService(http: mock).validateTransfer(from: Self.address, to: Self.address, usdtSun: 500_000)
             XCTFail("Should reject insufficient TRX")
         } catch let error as TransferValidationError {
-            XCTAssertEqual(error, .insufficientTRXForFee(neededSun: 64_317 * 420 + 145 * 1000, haveSun: 100))
+            XCTAssertEqual(error, .insufficientTRXForFee(neededSun: 64_317 * 420 + 345 * 1000, haveSun: 100))
         }
     }
 

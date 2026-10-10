@@ -143,7 +143,8 @@ public final class TronTransferService {
         }
         // TRC-20 transfer is about 345 bandwidth points. Stake management is outside this release.
         let free = max(0, freeLimit - freeUsed)
-        let burned = max(0, 345 - free)
+        // TRON requires the free allowance to cover the entire transaction; otherwise all bytes burn TRX.
+        let burned: Int64 = free >= 345 ? 0 : 345
         return try TronFee(energy: energy, energyPrice: energyPrice,
                            bandwidthBurned: burned, bandwidthPrice: bandwidthPrice)
     }
