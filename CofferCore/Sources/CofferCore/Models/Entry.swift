@@ -8,6 +8,7 @@ public enum EntryType: String, Codable, Sendable, CaseIterable {
     case database
     case totp
     case secureNote = "secure_note"
+    case wallet
 }
 
 public struct CustomField: Codable, Hashable, Sendable {
@@ -100,6 +101,32 @@ public struct SecureNotePayload: Codable, Hashable, Sendable {
     }
 }
 
+/// Tron 钱包。secret 为助记词/私钥原文（watchOnly 为 nil）；
+/// 与其他 payload 同级进 vault 密文，转账前才解密（spec §4）。
+public struct WalletPayload: Codable, Hashable, Sendable {
+    public enum Chain: String, Codable, Hashable, Sendable {
+        case tron
+    }
+    public enum SecretKind: String, Codable, Hashable, Sendable {
+        case mnemonic
+        case privateKey
+        case watchOnly
+    }
+
+    public var chain: Chain
+    public var address: String
+    public var secretKind: SecretKind
+    public var secret: String?
+    public var derivationPath: String?
+    public var note: String?
+
+    public init(chain: Chain, address: String, secretKind: SecretKind,
+                secret: String?, derivationPath: String?, note: String?) {
+        self.chain = chain; self.address = address; self.secretKind = secretKind
+        self.secret = secret; self.derivationPath = derivationPath; self.note = note
+    }
+}
+
 /// 关联值枚举的 Codable 由 Swift 5.5+ 自动合成（按 case 名 keyed 编码）
 public enum EntryPayload: Codable, Hashable, Sendable {
     case login(LoginPayload)
@@ -109,6 +136,7 @@ public enum EntryPayload: Codable, Hashable, Sendable {
     case database(DatabasePayload)
     case totp(TOTPPayload)
     case secureNote(SecureNotePayload)
+    case wallet(WalletPayload)
 }
 
 public struct Group: Codable, Hashable, Identifiable, Sendable {

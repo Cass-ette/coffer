@@ -112,6 +112,11 @@ public struct SearchIndex: Sendable {
             if let s = FuzzyMatch.score(query: query, in: payload.databaseName) {
                 maxScore = max(maxScore, s * 60)
             }
+        case .wallet(let payload):
+            // Address only (secret/mnemonic is sensitive, never searched)
+            if let s = FuzzyMatch.score(query: query, in: payload.address) {
+                maxScore = max(maxScore, s * 60)
+            }
         case .totp, .secureNote:
             // No searchable non-sensitive fields in payload
             break
