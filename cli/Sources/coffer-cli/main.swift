@@ -325,8 +325,15 @@ func printPayload(_ payload: EntryPayload) {
     case .secureNote(let p):
         print("  Body: [HIDDEN - \(p.body.count) chars]")
         print("  Attachments: \(p.attachments.count)")
-    case .wallet:
-        print("   [钱包条目，详情请在 App 中查看]")
+    case .wallet(let p):
+        print("   Address: \(p.address)")
+        print("   Chain: \(p.chain.rawValue)")
+        // Wallet secrets are never CLI output, even for an authorized reader.
+        switch p.secretKind {
+        case .watchOnly: print("   Mode: watch-only")
+        case .mnemonic: print("   Mode: mnemonic (secret hidden)")
+        case .privateKey: print("   Mode: private key (secret hidden)")
+        }
     case .unknown:
         print("   [未知类型条目，内容已保留]")
     }
