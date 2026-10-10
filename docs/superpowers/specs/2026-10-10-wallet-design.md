@@ -32,19 +32,26 @@ Coffer 新增虚拟货币钱包能力：以**新条目类型 wallet** 存放 Tro
 
 ## 3. 数据模型
 
-CofferCore `Entry` 新增 payload 类型（沿用现有 PayloadKind 模式）：
+沿用现有双枚举模式：`EntryType`（字符串枚举，落库/CLI/列表图标用）+ `EntryPayload`（关联值枚举）。
 
 ```swift
-public enum PayloadKind: Codable {
+// EntryType 增加：
+public enum EntryType: String, Codable, Sendable, CaseIterable {
+    // ...现有 case...
+    case wallet
+}
+
+// EntryPayload 增加（注：现有 payload 均 Hashable，Entry 由此合成 Hashable）：
+public enum EntryPayload: Codable, Hashable, Sendable {
     // ...现有 case...
     case wallet(WalletPayload)
 }
 
-public struct WalletPayload: Codable, Equatable, Sendable {
-    public enum Chain: String, Codable, Sendable {
+public struct WalletPayload: Codable, Hashable, Sendable {
+    public enum Chain: String, Codable, Hashable, Sendable {
         case tron
     }
-    public enum SecretKind: String, Codable, Sendable {
+    public enum SecretKind: String, Codable, Hashable, Sendable {
         case mnemonic        // 12/24 词助记词（最高权限）
         case privateKey      // 64 位十六进制私钥
         case watchOnly       // 只存地址，无秘密（不能转账）
@@ -61,9 +68,10 @@ public struct WalletPayload: Codable, Equatable, Sendable {
 
 设计要点：
 
-- **地址可搜索**：Entry 的 title/subtitle 走现有 SearchIndex，地址同时进索引（用户常“搜地址找钱包”）。
-- **watchOnly 模式**：只存地址也能用余额+收款功能（省去“只想看看”用户被迫存私钥的问题）；secretKind 为 watchOnly 时转账按钮禁用并说明原因。
+- **地址可搜索**：把地址写入 subtitle（现有 SearchIndex 只索引 title/subtitle/customFields，不改 SearchIndex 本身；subtitle 默认填地址，用户可改）。
+- **watchOnly 模式**：只存地址也能用余额+收款功能（省去“只想看看”用户被迫存私钥的问题）；secretKind 为 watchOnly 时转账按钮禁用并说明原因。创建入口见 §6.1「仅导入地址」。
 - 助记词/私钥作为普通字段进 vault 密文（与银行卡密码同级保护，AES-GCM + DEK in Keychain），不额外分层——vault 本身的加密强度就是它的保密边界（见 §4）。
+- **CLI**：cli/main.swift 对 EntryType/EntryPayload 的穷举 switch 增加 wallet 分支；list 展示地址，secret 永不打印；本期 CLI 不做 wallet 的 add（app 内流程含助记词展示确认，CLI 场景不安全）。
 
 ## 4. 安全架构
 
@@ -79,7 +87,7 @@ vault AES-GCM 密文（磁盘）
 1. **存储**：secret 只在 vault 密文里出现。锁屏（LockCoordinator）后内存无明文。
 2. **转账门**：每次转账独立 Touch ID（业界软钱包标准，见 Trust Wallet/Phantom）。vault 处于解锁状态不豁免——防“电脑开着被人顺手操作”。
    - 生物识别不可用时回退：主密码再验一次（走 UnlockService 现有路径），不静默跳过。
-3. **内存卫生**：签名用 `Data`，签名完成立即用零覆写再释放（尽力而为，spec 5.2 已如实承认 Swift 无法保证绝对清零）。
+3. **内存卫生**：签名用 `Data`，签名完成立即用零覆写再释放（尽力而为；Swift 字符串/密钥无法保证绝对清零，如实承认）。
 4. **助记词展示**：新建钱包首次展示与“查看助记词”操作均需 Touch ID；页面常驻“此 12 词 = 钱包全部资产，抄纸备份、禁止拍照”警告文案。
 5. **转账确认**：金额、对方地址、预估手续费三要素齐全才可确认；地址显示首尾各 6 位 + 校验通过徽标，防看错/防 clipboard 劫持式整段展示。
 
@@ -88,8 +96,8 @@ vault AES-GCM 密文（磁盘）
 ### 5.1 依赖：TronKit.swift（首选）
 
 - horizontalsystems/TronKit.swift，MIT，SPM。生产级钱包（Unstoppable Wallet）在用。
-- 覆盖：secp256k1 签名、Keccak、Base58Check 地址校验、Tron 交易 protobuf 编码、能量估算。
-- 计划阶段先验证包可用性与 API 表面；若不可用，回退方案：secp256k1.swift + 自实现 protobuf（代价更高，风险已在评估）。
+- 覆盖：secp256k1 签名、Keccak、Base58Check 地址校验、BIP39 助记词、Tron 交易 protobuf 编码、能量估算。
+- 计划阶段第一步验证包可用性（编译 + 生成地址 + 模拟交易三连冒烟）。**回退边界**：若验证失败，回退方案（secp256k1 + Keccak + BIP39 各用独立成熟库、Tron protobuf 手写）视为 M3 范围变更——停下来重排 M3 计划，不在本 spec 内继续膨胀。
 
 ### 5.2 网络：TronGrid
 
@@ -105,12 +113,22 @@ vault AES-GCM 密文（磁盘）
 - USDT 合约地址常量：`TR7NHqjeKQxGTCi8q8ZY4QL5knYg7dVgX7`（主网唯一，硬编码合理）。
 - API key 存 AppSettings（非机密级，泄露仅影响限额）；所有请求 10s 超时。
 
-### 5.3 手续费：查询而非硬编码
+### 5.3 手续费与金额精度：查询而非硬编码
 
 1. 转账前模拟执行（triggerconstantcontract）取 energy_used；
 2. getchainparameters 取当前能量燃烧单价；
-3. 展示「预计 ≈ XX TRX（可退路：质押免燃烧，本期不做）」。
-4. 广播失败/能量不足：按返回码给出人话错误（如 TRX 不够付手续费）。
+3. **带宽**一并计入：每日免费带宽约 600 点，一笔 TRC-20 转账约耗 345 点；免费额度不足则按字节烧 TRX，估价时计入；
+4. 展示「预计 ≈ XX TRX（可退路：质押免燃烧，本期不做）」。
+5. **金额精度**：USDT（TRC-20）为 **6 位小数**（非 EVM 惯例的 18 位）。输入框限制 6 位小数、展示同 6 位；链上金额一律用整数最小单位（sun 类比：1 USDT = 10^6）换算，杜绝浮点误差；转账金额 > 余额（USDT）在确认前拦截（另见 §7）。
+6. 广播失败/能量不足：按返回码给出人话错误（如 TRX 不够付手续费）。
+
+### 5.4 广播语义：受理 ≠ 成功
+
+broadcasttransaction 返回成功仅表示**交易进入内存池**，链上执行仍可能失败（典型：REVERT / OUT_OF_ENERGY / 带宽不足被丢弃）。本期采用**受理即展示**策略：
+
+- 广播受理 → 显示交易哈希 + Tronscan 链接 +「以链上执行结果为准」提示文案，sheet 关闭；
+- 不做轮询交易回执（YAGNI，用户在 Tronscan 看最终状态；余额下次刷新自然体现）；
+- 若广播响应中直接带 DUPLICATE_INPUT / 签名错误等即时失败码，按失败处理（§7）。
 
 ## 6. UI 设计
 
@@ -119,9 +137,10 @@ vault AES-GCM 密文（磁盘）
 类型选「钱包」后出现：
 
 - 钱包名称（title，必填）
-- 来源二选一：**新建**（App 生成助记词）/ **导入**（粘贴助记词或私钥）
+- 来源三选一：**新建**（App 生成助记词）/ **导入**（粘贴助记词或私钥）/ **仅导入地址**（watchOnly）
 - 新建：生成后全屏展示 12 词（Touch ID 门控）→ 要求用户点击每个词完成「抄写确认」交互 → 抄写确认后展示地址
 - 导入：粘贴 → 即时校验（词表合法性/私钥格式）→ 实时显示派生地址让用户核对（应与其原钱包地址一致）→ 保存
+- 仅导入地址：校验 Base58Check 合法即可保存（secretKind = watchOnly，secret 为 nil）
 - 备注、分组、标签沿用现有编辑器字段
 
 ### 6.2 详情页（wallet 类型）
@@ -151,7 +170,7 @@ vault AES-GCM 密文（磁盘）
 3. 费用预估：模拟执行 + 实时费率 →「预计消耗 ≈ XX TRX」；TRX 余额不足时直接警告并阻止
 4. 确认页：金额、对方地址首尾 6 位、费用、USDT 转后余额预览 →「确认转账」
 5. **Touch ID 门**（§4.2）→ 解密 secret → 构建+签名（内存内完成，签后置零）
-6. 广播 → 成功：显示交易哈希（可复制 + Tronscan 链接）→ sheet 关闭回详情页；失败：保留输入，人话错误
+6. 广播 → 受理：显示交易哈希（可复制 + Tronscan 链接 +「以链上执行结果为准」提示，见 §5.4）→ sheet 关闭回详情页；即时失败：保留输入，人话错误
 7. 全程 sheet 不可被关闭中途丢失已输入内容（进度内 confirm 退出）
 
 ## 7. 错误处理
@@ -162,6 +181,8 @@ vault AES-GCM 密文（磁盘）
 | 地址校验失败 | 输入阶段拦截，指明原因（格式/校验位） |
 | 私钥与地址不匹配（导入时） | 保存前拦截——派生地址 ≠ 用户提供的地址时报错 |
 | TRX 不足以付能量费 | 转账确认前拦截，提示需保留多少 TRX |
+| 转账金额 > USDT 余额 | 确认前拦截 |
+| 输入超过 6 位小数 | 输入框即时截断/提示 |
 | 广播返回能量不足/失败 | 保留表单，展示链上错误的人话翻译 |
 | Touch ID 失败/取消 | 中止转账，vault 保持解锁（转账门独立于 vault 解锁） |
 | TronGrid 限流 | 余额缓存兜底；转账提示稍后重试 |
@@ -174,7 +195,8 @@ vault AES-GCM 密文（磁盘）
 - 地址校验：合法/非法 Base58Check、前缀 T
 - 网络层以协议抽象（`TronProviding`），单测全部 mock：
   - 余额解析（USDT/TRX）、缓存过期逻辑
-  - 转账交易构建参数、能量估算换算、费用不足分支
+  - 转账交易构建参数、能量+带宽估算换算、费用不足分支、金额 > 余额分支
+  - 金额精度：6 位小数截断、字符串→最小单位整数换算无浮点
   - 广播成功/失败路径
 - 助记词生成：熵长度 128 位、词表合法、同熵同词、SecRandom 可替换注入
 
@@ -193,5 +215,15 @@ vault AES-GCM 密文（磁盘）
 3. M3：转账（校验→估价→Touch ID→签名→广播）—— 可转
 4. M4：错误路径打磨 + 手测 + README 更新
 
-每个里程碑结束 app 处于可用状态，可独立提交。
+## 10. 数据安全：绝不弄丢用户已有数据
+
+用户明确要求（曾因版本更新丢失过全部数据）：钱包功能开发全程，现有 142 条记录的保全优先于一切新功能。
+
+**多层防线（实现与发布均须遵守）：**
+
+1. **冷备份先行**：钱包功能动第一行代码前，vault.vault + bak1 已复制到 `~/Documents/CofferBackups/vault-20261010-prewallet.*`（已做 ✅）。该副本与开发流程完全隔离，任何操作不碰它。
+2. **兼容性测试是 M1 第一道门**：新增 `EntryType.wallet` 后，旧版 vault（无 wallet 字段）的解码 round-trip 单测必须先行通过，才允许任何后续改动。核心风险点：`EntryPayload` 的 Codable 是 Swift 自动合成的 keyed 编码，`decode` 无法识别未知 case 时会**整文档解码失败**——这正是历史上丢数据的典型机制。因此每次 vault 格式演进（本期和以后）都遵守：**读旧文件必须兼容、写新文件必须旧版可跳过（未知条目类型降级为占位而非报错）**。
+3. **保存路径原子性**：沿用 VaultFileStore 现有写策略（tmp 文件原子替换 + 三份滚动备份 bak1-3），钱包功能不新增任何绕过该路径的写入。
+4. **发布前验收**：M1/M3 结束各做一次「用 2026-10-10 冷备份副本解密 → 条目数 142 → 内容抽查」演练，写进验收清单。
+5. **变更纪律**：任何涉及 Entry/VaultDocument 编解码的 PR，必须附带新旧格式兼容测试，否则不许合并。
 
