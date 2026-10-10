@@ -39,15 +39,15 @@ final class SearchIndexTests: XCTestCase {
     func testTitleOutranksTagOutranksURL() {
         let entries = [
             Entry(id: UUID(), type: .login, title: "github", subtitle: "",
-                  groupID: nil, tags: [], isFavorite: false, permissionNote: "",
+                  groupIDs: [], tags: [], isFavorite: false, isHidden: false, permissionNote: "",
                   customFields: [], createdAt: Date(), updatedAt: Date(),
                   payload: .login(LoginPayload(username: "user", password: "pass", urls: []))),
             Entry(id: UUID(), type: .login, title: "x", subtitle: "",
-                  groupID: nil, tags: ["github"], isFavorite: false, permissionNote: "",
+                  groupIDs: [], tags: ["github"], isFavorite: false, isHidden: false, permissionNote: "",
                   customFields: [], createdAt: Date(), updatedAt: Date(),
                   payload: .login(LoginPayload(username: "user", password: "pass", urls: []))),
             Entry(id: UUID(), type: .login, title: "y", subtitle: "",
-                  groupID: nil, tags: [], isFavorite: false, permissionNote: "",
+                  groupIDs: [], tags: [], isFavorite: false, isHidden: false, permissionNote: "",
                   customFields: [], createdAt: Date(), updatedAt: Date(),
                   payload: .login(LoginPayload(username: "user", password: "pass", urls: ["https://github.com"])))
         ]
@@ -67,7 +67,7 @@ final class SearchIndexTests: XCTestCase {
     func testSensitiveFieldsNeverMatched() {
         let entries = [
             Entry(id: UUID(), type: .login, title: "safe", subtitle: "",
-                  groupID: nil, tags: [], isFavorite: false, permissionNote: "",
+                  groupIDs: [], tags: [], isFavorite: false, isHidden: false, permissionNote: "",
                   customFields: [
                     CustomField(name: "note", value: "secret123", isSensitive: true)
                   ], createdAt: Date(), updatedAt: Date(),
@@ -82,13 +82,13 @@ final class SearchIndexTests: XCTestCase {
     func testPermissionNoteLowestWeight() {
         let entries = [
             Entry(id: UUID(), type: .login, title: "a", subtitle: "",
-                  groupID: nil, tags: [], isFavorite: false, permissionNote: "",
+                  groupIDs: [], tags: [], isFavorite: false, isHidden: false, permissionNote: "",
                   customFields: [
                     CustomField(name: "field", value: "match", isSensitive: false)
                   ], createdAt: Date(), updatedAt: Date(),
                   payload: .login(LoginPayload(username: "user", password: "pass", urls: []))),
             Entry(id: UUID(), type: .login, title: "b", subtitle: "",
-                  groupID: nil, tags: [], isFavorite: false, permissionNote: "match",
+                  groupIDs: [], tags: [], isFavorite: false, isHidden: false, permissionNote: "match",
                   customFields: [], createdAt: Date(), updatedAt: Date(),
                   payload: .login(LoginPayload(username: "user", password: "pass", urls: [])))
         ]
@@ -106,15 +106,15 @@ final class SearchIndexTests: XCTestCase {
         let group2 = UUID()
         let entries = [
             Entry(id: UUID(), type: .login, title: "github work", subtitle: "",
-                  groupID: group1, tags: ["dev"], isFavorite: false, permissionNote: "",
+                  groupIDs: [group1], tags: ["dev"], isFavorite: false, isHidden: false, permissionNote: "",
                   customFields: [], createdAt: Date(), updatedAt: Date(),
                   payload: .login(LoginPayload(username: "user", password: "pass", urls: []))),
             Entry(id: UUID(), type: .login, title: "github personal", subtitle: "",
-                  groupID: group2, tags: ["dev"], isFavorite: false, permissionNote: "",
+                  groupIDs: [group2], tags: ["dev"], isFavorite: false, isHidden: false, permissionNote: "",
                   customFields: [], createdAt: Date(), updatedAt: Date(),
                   payload: .login(LoginPayload(username: "user", password: "pass", urls: []))),
             Entry(id: UUID(), type: .login, title: "slack work", subtitle: "",
-                  groupID: group1, tags: ["chat"], isFavorite: false, permissionNote: "",
+                  groupIDs: [group1], tags: ["chat"], isFavorite: false, isHidden: false, permissionNote: "",
                   customFields: [], createdAt: Date(), updatedAt: Date(),
                   payload: .login(LoginPayload(username: "user", password: "pass", urls: [])))
         ]
@@ -131,15 +131,15 @@ final class SearchIndexTests: XCTestCase {
         let new = Date(timeIntervalSince1970: 3000)
         let entries = [
             Entry(id: UUID(), type: .login, title: "old", subtitle: "",
-                  groupID: nil, tags: [], isFavorite: false, permissionNote: "",
+                  groupIDs: [], tags: [], isFavorite: false, isHidden: false, permissionNote: "",
                   customFields: [], createdAt: old, updatedAt: old,
                   payload: .login(LoginPayload(username: "user", password: "pass", urls: []))),
             Entry(id: UUID(), type: .login, title: "mid", subtitle: "",
-                  groupID: nil, tags: [], isFavorite: false, permissionNote: "",
+                  groupIDs: [], tags: [], isFavorite: false, isHidden: false, permissionNote: "",
                   customFields: [], createdAt: mid, updatedAt: mid,
                   payload: .login(LoginPayload(username: "user", password: "pass", urls: []))),
             Entry(id: UUID(), type: .login, title: "new", subtitle: "",
-                  groupID: nil, tags: [], isFavorite: false, permissionNote: "",
+                  groupIDs: [], tags: [], isFavorite: false, isHidden: false, permissionNote: "",
                   customFields: [], createdAt: new, updatedAt: new,
                   payload: .login(LoginPayload(username: "user", password: "pass", urls: [])))
         ]

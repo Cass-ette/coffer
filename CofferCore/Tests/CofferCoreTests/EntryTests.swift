@@ -47,7 +47,7 @@ extension Entry {
     static func fixture(type: EntryType?) -> Entry {
         Entry(
             id: UUID(), type: type ?? .login, title: "APT 预约系统", subtitle: "apt-admin",
-            groupID: nil, tags: ["内网"], isFavorite: false, permissionNote: "管理员",
+            groupIDs: [], tags: ["内网"], isFavorite: false, isHidden: false, permissionNote: "管理员",
             customFields: [CustomField(name: "机房", value: "3 栋", isSensitive: false)],
             createdAt: Date(timeIntervalSinceReferenceDate: 0), updatedAt: Date(timeIntervalSinceReferenceDate: 0),
             payload: .login(LoginPayload(username: "", password: "", urls: []))
