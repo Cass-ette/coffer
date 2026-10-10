@@ -15,6 +15,10 @@ struct EntryDetailView: View {
             VStack(alignment: .leading, spacing: 18) {
                 header
                 totpBlock
+                if case .wallet(let wallet) = entry.payload {
+                    WalletDetailSection(entryID: entry.id, address: wallet.address, secretKind: wallet.secretKind)
+                        .id(entry.id)
+                }
                 fieldCard
                 if !entry.permissionNote.isEmpty {
                     section("我的权限") {

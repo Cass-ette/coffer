@@ -44,6 +44,16 @@ struct SettingsView: View {
                 }
             }
             securitySection
+            Section("钱包") {
+                SecureField("TronGrid API key（选填）", text: $appSettings.trongridApiKey)
+                Text("TronGrid 免费档不填也能使用，限流时可添加自己的 API key。")
+                    .font(.caption).foregroundStyle(.secondary)
+                Picker("余额缓存", selection: $appSettings.balanceCacheSeconds) {
+                    Text("1 分钟").tag(60)
+                    Text("5 分钟").tag(300)
+                    Text("15 分钟").tag(900)
+                }
+            }
             Section("数据") {
                 Button("从备份恢复…") { confirmRestore = true }
                     .disabled(!unlock.isUnlocked)

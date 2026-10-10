@@ -29,16 +29,26 @@ final class AppSettings: ObservableObject {
             LaunchAtLogin.set(launchAtLogin)
         }
     }
+    @Published var trongridApiKey: String {
+        didSet { save(trongridApiKey, for: Keys.trongridApiKey) }
+    }
+    @Published var balanceCacheSeconds: Int {
+        didSet { save(balanceCacheSeconds, for: Keys.balanceCacheSeconds) }
+    }
 
     private init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         hotkey = Self.load(Keys.hotkey, from: defaults) ?? .defaultHotkey
         launchAtLogin = Self.load(Keys.launchAtLogin, from: defaults) ?? true  // 成功标准 1 的前提，默认开
+        trongridApiKey = Self.load(Keys.trongridApiKey, from: defaults) ?? ""
+        balanceCacheSeconds = Self.load(Keys.balanceCacheSeconds, from: defaults) ?? 300
     }
 
     private enum Keys {
         static let hotkey = "coffer.hotkey"
         static let launchAtLogin = "coffer.launchAtLogin"
+        static let trongridApiKey = "coffer.wallet.trongridKey"
+        static let balanceCacheSeconds = "coffer.wallet.balanceCache"
     }
 
     private func save<T: Codable>(_ value: T, for key: String) {
