@@ -49,10 +49,9 @@ final class TronTransferServiceTests: XCTestCase {
         """.utf8)
     }
 
-    private func stubFee(_ mock: MockHTTP) {
-        mock.stubs["/wallet/triggerconstantcontract"] = Data("""
-        {"result":{"result":true},"energy_used":64317,"transaction":{"raw_data_hex":"0a02"}}
-        """.utf8)
+    private func stubFee(_ mock: MockHTTP, amount: Int64 = 1) {
+        mock.stubs["/wallet/triggerconstantcontract"] = try! JSONSerialization.data(
+            withJSONObject: TronSimulationTests.simulation(amount: amount))
         mock.stubs["/wallet/getchainparameters"] = Data("""
         {"chainParameter":[{"key":"getTransactionFee","value":1000},{"key":"getEnergyFee","value":420}]}
         """.utf8)
@@ -86,7 +85,7 @@ final class TronTransferServiceTests: XCTestCase {
     func testFeeEstimateParsesEnergyAndBandwidth() async throws {
         let mock = MockHTTP()
         stubBalances(mock)
-        stubFee(mock)
+        stubFee(mock, amount: 1_000_000)
         let fee = try await TronTransferService(http: mock).estimateFee(from: Self.address, to: Self.address, usdtSun: 1_000_000)
         XCTAssertEqual(fee.energy, 64_317)
         XCTAssertEqual(fee.energyPrice, 420)
@@ -196,7 +195,7 @@ final class TronTransferServiceTests: XCTestCase {
     func testInsufficientTRXForFeeRejected() async throws {
         let mock = MockHTTP()
         stubBalances(mock, trx: 100)
-        stubFee(mock)
+        stubFee(mock, amount: 500_000)
         do {
             _ = try await TronTransferService(http: mock).validateTransfer(from: Self.address, to: Self.address, usdtSun: 500_000)
             XCTFail("Should reject insufficient TRX")

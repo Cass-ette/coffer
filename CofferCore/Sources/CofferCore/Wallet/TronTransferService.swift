@@ -36,6 +36,18 @@ public enum BroadcastError: LocalizedError, Equatable {
     }
 }
 
+public enum TransferSimulationError: LocalizedError, Equatable {
+    case failed, unverified
+    public var errorDescription: String? {
+        switch self {
+        case .failed:
+            return "USDT 转账预检失败，这笔 USDT 尚未广播。请刷新余额并核对金额与收款地址。"
+        case .unverified:
+            return "USDT 转账预检结果不完整或与输入不符，已停止；请稍后重新估价。"
+        }
+    }
+}
+
 public struct TronFee: Equatable, Sendable {
     public let energy: Int64
     public let energyPrice: Int64
@@ -133,13 +145,9 @@ public final class TronTransferService {
             "parameter": Self.abiEncode(to: to, amount: usdtSun)!, "visible": false
         ], headers: headers)
         let sim = try Self.jsonObject(simulation)
-        guard Self.truth((sim["result"] as? [String: Any])?["result"]),
-              let energy = Self.integer(sim["energy_used"]), energy > 0 else {
+        try Self.verifySimulation(sim, from: from, to: to, amount: usdtSun)
+        guard let energy = Self.integer(sim["energy_used"]), energy > 0 else {
             throw TronGridError.badResponse
-        }
-        if let results = sim["constant_result"] as? [String], let result = results.first,
-           !result.isEmpty, Int(result, radix: 16) == 0 {
-            throw BroadcastError.rejected("CONTRACT_REVERT")
         }
 
         let paramData = try await http.post("/wallet/getchainparameters", body: [:], headers: headers)
@@ -303,6 +311,49 @@ public final class TronTransferService {
             throw TransferValidationError.invalidAddress
         }
         guard amount > 0 else { throw TransferValidationError.invalidAmount }
+    }
+
+    private static func verifySimulation(_ simulation: [String: Any], from: String, to: String,
+                                          amount: Int64) throws {
+        guard let result = simulation["result"] as? [String: Any],
+              let accepted = WalletJSON.bool(result["result"]) else { throw TransferSimulationError.unverified }
+        guard accepted else { throw TransferSimulationError.failed }
+        if let value = result["code"] {
+            guard let code = value as? String else { throw TransferSimulationError.unverified }
+            guard code == "SUCCESS" else { throw TransferSimulationError.failed }
+        }
+        if let value = result["message"] {
+            guard let message = value as? String else { throw TransferSimulationError.unverified }
+            guard message.isEmpty else { throw TransferSimulationError.failed }
+        }
+        guard let transaction = simulation["transaction"] as? [String: Any],
+              let statuses = transaction["ret"] as? [[String: Any]], statuses.count == 1 else {
+            throw TransferSimulationError.unverified
+        }
+        // Protobuf's default SUCCESS values may be omitted, producing ret: [{}].
+        for key in ["ret", "contractRet"] {
+            if let value = statuses[0][key] {
+                guard let status = value as? String else { throw TransferSimulationError.unverified }
+                guard status == "SUCCESS" else { throw TransferSimulationError.failed }
+            }
+        }
+
+        // Mainnet USDT can return a zero ABI bool after a successful transfer.
+        // Conversely, RPC result:true also occurs on REVERT. Require the exact
+        // token Transfer event as well as successful execution, never the bool alone.
+        let fromTopic = String(repeating: "0", count: 24) + hex41(from)!.dropFirst(2)
+        let encoded = abiEncode(to: to, amount: amount)!
+        let expectedTopics = ["ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                              fromTopic, String(encoded.prefix(64))]
+        let expectedAmount = String(encoded.suffix(64))
+        guard let logs = simulation["logs"] as? [[String: Any]], logs.contains(where: { log in
+            guard let address = (log["address"] as? String)?.lowercased(),
+                  address == String(usdtContractHex.dropFirst(2)),
+                  let topics = log["topics"] as? [String],
+                  topics.map({ $0.lowercased() }) == expectedTopics,
+                  (log["data"] as? String)?.lowercased() == expectedAmount else { return false }
+            return true
+        }) else { throw TransferSimulationError.unverified }
     }
 
     private static func matchesRentalPayment(_ transaction: [String: Any], from: String, amount: Int64) -> Bool {

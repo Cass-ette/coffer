@@ -8,7 +8,7 @@
 ## 1. 当前状态（2026-10-11）
 
 - 仓库：`~/Projects/coffer`，**工作分支 `feature/wallet`**（从 main 拉出，后续任务都在这个分支提交）
-- CofferCore 当前回归：**126/126 绿**（`cd CofferCore && swift test`，原 68 项保留）
+- CofferCore 当前回归：**132/132 绿**（`cd CofferCore && swift test`，原 68 项保留）
 - 已完成代码：
   - **T0** 修测试套件（`d84c3f4`）：groupIDs/isHidden 签名演进没同步测试导致编译失败，已修
   - **T1** WalletPayload 数据模型（`d17205e`）：EntryType.wallet + EntryPayload.wallet + WalletPayload struct + SearchIndex 只搜地址不搜 secret
@@ -22,6 +22,7 @@
 - 入账手测发现新地址账户接口为空却已持有 USDT；`3e5223c` 改为直接查询 `balanceOf(address)` 并通过 102 项回归、App/CLI 构建。链上核对实际入账 3.500000 USDT，用户已确认修复版 UI 显示该余额；此时 CLI 149 条可读
 - 用户授权费用透明化扩展，实施说明见 [按次租能量与费用](2026-10-11-wallet-fees.md)：资源抵扣、直接/租赁比价、费用上限与实际回执、中断恢复已实现；126 项回归和 App/CLI 构建通过，真实租赁/转出仍待手测。
 - 2026-10-11 曾误启动 9 月 17 日旧 DerivedData 构建，引发钱包类型解码失败并误报 vault 损坏；新版 CLI 149 条可读，切回项目 `.build/Build/Products/Debug/Coffer.app` 后用户确认恢复。后续不要打开旧 DerivedData 版本。
+- 报价手测发现主网 USDT 成功模拟也会返回 ABI 零值，原代码误报 CONTRACT_REVERT；已改为核验 RPC/VM 状态及完整 Transfer 事件，同时拦截真实回退。132 项回归与 App/CLI 构建通过，待新版 UI 报价重试。
 
 ## 2. 剩余任务（全部在计划文档里有完整代码）
 

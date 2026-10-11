@@ -7,9 +7,10 @@
 
 | 检查 | 结果 |
 |---|---|
-| `cd CofferCore && swift test` | 126 项通过，0 失败；原基线 68 项保留 |
+| `cd CofferCore && swift test` | 132 项通过，0 失败；原基线 68 项保留 |
 | `TronTransferServiceTests` | 22 项通过，包含金额精度、资源抵扣、预算余量、实际签名字节/带宽核对、广播未知与过期恢复、落盘失败不广播 |
 | 租赁 / 执行回执 / 中断记录 | 分别 8 / 3 / 5 项通过；包括小数单价、完整供给、两笔网络费、JSON 与 protobuf 双重核验、超时保留哈希、损坏记录阻止新付款、重启保留成本和重复窗口保护 |
+| USDT 合约预检 | 6 项通过；成功但 ABI 返回零、空返回、RPC 成功但 VM 失败、执行失败不能被返回值/事件覆盖、事件合约/双方地址/金额不符、执行状态不完整 |
 | App Debug 构建 | `xcodebuild -scheme Coffer -configuration Debug -derivedDataPath .build build` 成功；依赖及存量 Sendable 警告仍在 |
 | CLI 构建 | `cd cli && swift build` 成功 |
 | 真实 vault 只读统计 | 手测前 148 条；入账修复后 149 条；本次最终 CLI 构建只读验收为 150 条。仅保留统计结果，不记录条目或凭证内容 |
@@ -59,6 +60,13 @@ TronKit 平台与验证接口差异见 [README-COFFER.md](../../Vendor/TronKit/R
 后续请始终打开这个路径；旧版遇到钱包条目会误报解密失败，不能据此直接回滚数据。
 
 ## 用户手测（待完成）
+
+报价手测出现“节点拒绝交易：CONTRACT_REVERT”。对用户输入的 1 USDT 做只读主网模拟，
+节点返回 `result: true`、`transaction.ret: [{}]`、`constant_result: ["000…000"]`，
+但同时产生完全匹配的 USDT Transfer 事件，能量消耗 130,285。原实现把 ABI 的零返回值当作回退，导致成功模拟被误拒绝。
+另用超余额金额只读模拟发现，真实回退也可能返回 `result: true`，但带有 REVERT message、`ret: FAILED` 且没有 Transfer 事件。
+修复后同时核验 RPC/VM 状态与 USDT 合约的 Transfer 事件（发送方、收款方、完整金额），不再仅按 ABI 布尔值判断。
+错误文案区分转账预检与广播拒绝；未进行真实签名、租赁付款或广播。新增测试先复现失败后修复，132 项回归及 App/CLI 构建通过，UI 报价重试仍待用户验收。
 
 已核对一笔由外部钱包转入的交易：主网 USDT 合约执行 `SUCCESS`，实际转入 3.500000 USDT。
 当时收款地址的账户查询为 `data: []`，合约 `balanceOf` 为 3,500,000 最小单位，复现了 UI 零余额问题。
