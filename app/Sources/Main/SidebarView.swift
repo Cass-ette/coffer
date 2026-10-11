@@ -10,6 +10,7 @@ struct SidebarView: View {
     @State private var newGroupIcon = "folder"
     @State private var newGroupIsHidden = false
     @State private var newGroupPassword = ""
+    @State private var changingGroupIcon: CofferCore.Group?
 
     private var allTags: [String] {
         Array(Set((unlock.document?.entries ?? []).flatMap(\.tags))).sorted()
@@ -37,6 +38,7 @@ struct SidebarView: View {
                             handleDrop(items: items, to: group)
                         }
                         .contextMenu {
+                            Button("更换图标…") { changingGroupIcon = group }
                             Button("删除", role: .destructive) {
                                 deleteGroup(group)
                             }
@@ -63,6 +65,7 @@ struct SidebarView: View {
                                 handleDrop(items: items, to: group)
                             }
                             .contextMenu {
+                                Button("更换图标…") { changingGroupIcon = group }
                                 Button("删除", role: .destructive) {
                                     deleteGroup(group)
                                 }
@@ -101,6 +104,16 @@ struct SidebarView: View {
                     addGroup()
                 }
             )
+        }
+        .sheet(item: $changingGroupIcon) { group in
+            ChangeGroupIconSheet(group: group)
+        }
+        .onChange(of: unlock.isUnlocked) { _, unlocked in
+            if !unlocked {
+                showingAddGroup = false
+                changingGroupIcon = nil
+                newGroupPassword = ""
+            }
         }
     }
 
@@ -195,13 +208,6 @@ struct AddGroupSheet: View {
     @State private var password = ""
     @State private var confirmPassword = ""
 
-    private let commonIcons = [
-        "folder", "network", "server.rack", "lock.shield",
-        "graduationcap", "building.2", "house",
-        "chevron.left.forwardslash.chevron.right",
-        "key", "person", "briefcase", "globe"
-    ]
-
     var body: some View {
         VStack(spacing: 20) {
             Text("新建分组")
@@ -210,23 +216,7 @@ struct AddGroupSheet: View {
             TextField("分组名称", text: $groupName)
                 .textFieldStyle(.roundedBorder)
 
-            Text("选择图标")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 12) {
-                ForEach(commonIcons, id: \.self) { icon in
-                    Button(action: { groupIcon = icon }) {
-                        Image(systemName: icon)
-                            .font(.title2)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
-                    .frame(height: 44)
-                    .background(groupIcon == icon ? Color.accentColor.opacity(0.2) : Color.gray.opacity(0.1))
-                    .cornerRadius(8)
-                    .buttonStyle(.plain)
-                }
-            }
+            GroupIconPicker(selection: $groupIcon)
 
             Divider()
 
@@ -258,7 +248,7 @@ struct AddGroupSheet: View {
             }
         }
         .padding()
-        .frame(width: 400)
+        .frame(width: 440)
     }
 
     private var isValid: Bool {
