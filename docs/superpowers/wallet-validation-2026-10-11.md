@@ -7,11 +7,12 @@
 
 | 检查 | 结果 |
 |---|---|
-| `cd CofferCore && swift test` | 102 项通过，0 失败；原基线 68 项保留 |
-| `TronTransferServiceTests` | 14 项通过，包含金额精度、余额/费用不足、实际签名字节核对、广播拒绝与未知状态 |
+| `cd CofferCore && swift test` | 126 项通过，0 失败；原基线 68 项保留 |
+| `TronTransferServiceTests` | 22 项通过，包含金额精度、资源抵扣、预算余量、实际签名字节/带宽核对、广播未知与过期恢复、落盘失败不广播 |
+| 租赁 / 执行回执 / 中断记录 | 分别 8 / 3 / 5 项通过；包括小数单价、完整供给、两笔网络费、JSON 与 protobuf 双重核验、超时保留哈希、损坏记录阻止新付款、重启保留成本和重复窗口保护 |
 | App Debug 构建 | `xcodebuild -scheme Coffer -configuration Debug -derivedDataPath .build build` 成功；依赖及存量 Sendable 警告仍在 |
 | CLI 构建 | `cd cli && swift build` 成功 |
-| 真实 vault 只读统计 | 手测前 148 条；入账修复后 149 条可读。仅保留统计结果，不记录条目或凭证内容 |
+| 真实 vault 只读统计 | 手测前 148 条；入账修复后 149 条；本次最终 CLI 构建只读验收为 150 条。仅保留统计结果，不记录条目或凭证内容 |
 | 钥匙串测试隔离 | 随机独立 service；不再操作正式 DEK 项 |
 | 兼容性 | `_0` 编码黄金测试、旧文档读取与未知类型保留回写测试通过 |
 
@@ -28,13 +29,34 @@ TronGrid 只读冒烟使用公开黄金地址 `TUEZSdKsoDHQMeZwihtdoBiN46zxhGWYd
 - 账户资源取自 POST `/wallet/getaccountresource`，不是 `/v1/accounts/{address}`；资源用量为零时节点可以省略该字段。
 - 免费带宽不足以覆盖整笔交易时，TRON 按整笔字节计费，而非仅计超出免费额度的差额。
   依据：[java-tron BandwidthProcessor 的 useFreeNet/useTransactionFee](https://github.com/tronprotocol/java-tron/blob/develop/chainbase/src/main/java/org/tron/core/db/BandwidthProcessor.java)。
-  当前仍按计划以约 345 字节估价；未抵扣质押资源，实际手续费以链上为准。
+  当前以约 345 字节估价，并在签名前检查实际单签名交易带宽不超出预算；抵扣可用能量与质押/委托及免费带宽，实际手续费以链上为准。
 - 不仅核对节点返回的 JSON，还核对 `SHA256(raw_data_hex) == txID` 和 protobuf 内的实际合约、地址、调用数据、费用上限。
   使用 fork 新增的公开 `TransactionVerifier` 复用上游生成的 protobuf 类型，没有手写 protobuf。
 - 广播响应必须明确为成功才显示“已受理”；超时/缺少有效确认显示“状态未知”并保留哈希。
 - 转账签名密钥在独立认证后、交易构建核验完毕时读取，签后尽力覆零；私钥地址须与转出地址一致。
 
 TronKit 平台与验证接口差异见 [README-COFFER.md](../../Vendor/TronKit/README-COFFER.md)。
+
+## 费用透明化与按次租赁扩展
+
+用户授权后完成直接 TRX / TronSave 一小时租能量比价，默认选择更便宜且余额足够的方案。
+报价同时展示预计费用、按当前资源与费率计算的最高约支出、租金与两笔网络费、转账后预计余额。
+执行预算有 20% 能量余量，不预扣；最终展示付款与 USDT 转账的链上实际费用，链上失败单独显示。
+普通租赁固定按订单收费，未用完不承诺退款，不宣称严格按能量实际用量收费。
+
+广播前原子保存公开交易记录，不改变 vault。查询未知保持阻止新付款；固化链超过交易过期时间 60 秒，且两类节点均查无记录才解除。
+付款成功但资源仍不足时，允许用户选择按现有资源重新估价并单独认证，不再自动购买第二份能量。
+记录保留最近一次操作，下一次新转账会替换，不是完整交易历史。
+
+自动测试、App 和 CLI 构建通过。**真实主网租赁、转出与中断恢复手测尚未执行，不能标记整体验收完成。**
+
+## 旧版启动导致的损坏误报（已排除）
+
+用户报告“vault 文件损坏、无法登录”时，运行进程来自 Xcode 旧 DerivedData，二进制日期为 2026-09-17，不含钱包模型。
+新版 CLI 当场成功解密真实库并读出 149 条；主文件与 bak1–3 的外层 JSON 正常。
+已在 `/private/tmp/coffer-vault-diagnostic-by6cd6al` 保存当时加密副本并逐份校验一致，没有替换真库，也没有使用冷备份恢复。
+关闭旧版并打开项目 `.build/Build/Products/Debug/Coffer.app` 后，用户明确回复“没问题了，继续吧”。
+后续请始终打开这个路径；旧版遇到钱包条目会误报解密失败，不能据此直接回滚数据。
 
 ## 用户手测（待完成）
 
