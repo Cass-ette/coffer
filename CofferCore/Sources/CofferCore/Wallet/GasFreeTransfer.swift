@@ -5,8 +5,9 @@ import HsCryptoKit
 
 extension GasFreeService {
     /// Caller must obtain independent user authentication before providing the signing closure.
+    @MainActor
     public func submit(_ quote: GasFreeQuote, store: GasFreeJournalStore,
-                       signingKey: () throws -> Data) async throws -> GasFreeRecord {
+                       signingKey: @MainActor () throws -> Data) async throws -> GasFreeRecord {
         let previous = try store.load()
         guard !previous.blocksNewPayment else { throw GasFreeError.pending }
         guard quote.snapshot.owner == store.owner, quote.isFresh() else { throw GasFreeError.quoteChanged }
