@@ -39,6 +39,30 @@ final class TronRentalTests: XCTestCase {
         XCTAssertTrue(mock.posted[0].headers.isEmpty)
     }
 
+    func testTronSaveTruncatesFractionalSUNInLiveQuote() async throws {
+        for (energy, rent) in [(Int64(130_285), Int64(8_761_666)),
+                               (Int64(130_287), Int64(8_761_800))] {
+            let mock = MockHTTP()
+            stubQuote(mock, price: "67.25", total: rent, available: energy)
+            let quote = try await TronSaveClient(http: mock).quote(address: Self.address, energy: energy)
+            XCTAssertEqual(quote.rentSun, rent)
+        }
+    }
+
+    func testMainnetSizedQuoteComparesRentalAgainstDirectBurn() async throws {
+        let mock = MockHTTP()
+        stubQuote(mock, price: "67.25", total: 8_761_666, available: 130_285)
+        let rental = try await TronSaveClient(http: mock).quote(address: Self.address, energy: 130_285)
+        let resources = try TronResources(energy: 0, bandwidth: 0, freeBandwidth: 600)
+        let direct = try TronFee(energy: 130_285, energyPrice: 100, bandwidthBurned: 0,
+                                 bandwidthPrice: 1000, resources: resources)
+        let plan = try TronRentalPlan(quote: rental, directFee: direct)
+        XCTAssertEqual(direct.feeSun, 13_028_500)
+        XCTAssertEqual(plan.totalSun, 9_106_666)
+        XCTAssertEqual(plan.maximumTotalSun, 11_712_366)
+        XCTAssertEqual(plan.savingsSun, 3_921_834)
+    }
+
     func testQuoteRejectsPartialSupplyAndInconsistentPrice() async {
         for values in [(64_999, Int64(4_371_250)), (65_000, Int64(4_371_251))] {
             let mock = MockHTTP(); stubQuote(mock, total: values.1, available: Int64(values.0))

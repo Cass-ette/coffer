@@ -184,6 +184,8 @@ struct TransferSheet: View {
                 .font(.system(.title, design: .rounded).bold()).monospacedDigit()
             Text(draft.to).font(.system(.body, design: .monospaced)).textSelection(.enabled)
             Divider()
+            Label("此页仅展示报价；继续并完成独立认证后，才会发起新的交易。", systemImage: "info.circle")
+                .font(.caption).foregroundStyle(.secondary)
             balanceView
             Text("本次能量：需 \(fee.energy) · 已有 \(fee.energyAvailable) · 缺口 \(fee.energyBurned)")
                 .font(.callout).monospacedDigit()
@@ -206,7 +208,12 @@ struct TransferSheet: View {
                     ForEach(FeeMode.allCases) { Text($0.title).tag($0) }
                 }.pickerStyle(.segmented)
             } else if let message = draft.rentalMessage {
-                Text(message).font(.caption).foregroundStyle(.secondary)
+                if fee.energyBurned > 0 {
+                    Label("\(message) 当前仅有直接付费方案，请核对预计支出后再决定。", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption).foregroundStyle(.orange)
+                } else {
+                    Text(message).font(.caption).foregroundStyle(.secondary)
+                }
             }
             if selectedMode == .rental, let rental {
                 Text("租金 \(TronGridClient.formatUSDT(rental.quote.rentSun)) TRX，\(rental.quote.energy) 能量 / 1 小时")
@@ -238,7 +245,9 @@ struct TransferSheet: View {
                 Button("返回修改") { navigateBack(editing: true) }.keyboardShortcut(.cancelAction)
                 Spacer()
                 Button("刷新报价") { prepareQuote() }
-                Button("确认转账") { stage = .authing(draft) }.keyboardShortcut(.defaultAction)
+                Button(selectedMode == .rental ? "继续：租能量" : "继续：直接付费") {
+                    stage = .authing(draft)
+                }.keyboardShortcut(.defaultAction)
                     .disabled(draft.quote.balances.trxBalance < maximum || storageError != nil)
             }
         }
@@ -388,7 +397,7 @@ struct TransferSheet: View {
                         let energyQuote = try await TronSaveClient().quote(address: address, energy: quote.fee.energyBurned)
                         rental = try TronRentalPlan(quote: energyQuote, directFee: quote.fee)
                     } catch {
-                        message = "TronSave 租赁报价暂不可用，可刷新报价。"
+                        message = "TronSave 租赁报价暂不可用（\(error.localizedDescription)），可刷新报价。"
                     }
                 }
                 try Task.checkCancellation()

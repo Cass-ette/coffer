@@ -8,7 +8,7 @@
 ## 1. 当前状态（2026-10-11）
 
 - 仓库：`~/Projects/coffer`，**工作分支 `feature/wallet`**（从 main 拉出，后续任务都在这个分支提交）
-- CofferCore 当前回归：**143/143 绿**（`cd CofferCore && swift test`，原 68 项保留）
+- CofferCore 当前回归：**145/145 绿**（`cd CofferCore && swift test`，原 68 项保留）
 - 已完成代码：
   - **T0** 修测试套件（`d84c3f4`）：groupIDs/isHidden 签名演进没同步测试导致编译失败，已修
   - **T1** WalletPayload 数据模型（`d17205e`）：EntryType.wallet + EntryPayload.wallet + WalletPayload struct + SearchIndex 只搜地址不搜 secret
@@ -24,6 +24,7 @@
 - 2026-10-11 曾误启动 9 月 17 日旧 DerivedData 构建，引发钱包类型解码失败并误报 vault 损坏；新版 CLI 149 条可读，切回项目 `.build/Build/Products/Debug/Coffer.app` 后用户确认恢复。后续不要打开旧 DerivedData 版本。
 - 报价手测发现主网 USDT 成功模拟也会返回 ABI 零值，原代码误报 CONTRACT_REVERT；已改为核验 RPC/VM 状态及完整 Transfer 事件，同时拦截真实回退。132 项回归与 App/CLI 构建通过，待新版 UI 报价重试。
 - 随后报价遇到 TronGrid 429：共享请求排队/冷却、查询最多重试一次、有效链参数 15 秒短缓存、付款前强制刷新费率、减少重复余额查询及可取消报价等待已实现。143 项回归与 App/CLI 构建通过；广播和租赁购买不自动重发，待新版 UI 报价重试，匿名额度仍受服务商限制。
+- 再次报价只显示直接付费，因 TronSave 租金小数 SUN 向下取整，旧校验向上取整导致误拒绝有效报价。已按主网只读样本修复并补两项回归，145 项通过；新版 UI 双方案报价待手测，仍未真实付款或广播。
 
 ## 2. 剩余任务（全部在计划文档里有完整代码）
 

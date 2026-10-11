@@ -91,7 +91,9 @@ public final class TronSaveClient {
         // This one-hour product quotes SUN per requested unit. Reject unitemized extra charges.
         var cost = Decimal(energy) * result.unitPrice
         var rounded = Decimal()
-        NSDecimalRound(&rounded, &cost, 0, .up)
+        // TronSave's mainnet estimate truncates fractional SUN (e.g. 130285 × 67.25 =
+        // 8761666.25 SUN, returned as 8761666). Only accept that exact rounding rule.
+        NSDecimalRound(&rounded, &cost, 0, .down)
         guard rounded == Decimal(result.estimateTrx) else { throw RentalError.unavailable }
         return TronRentalQuote(address: address, energy: energy, durationSeconds: 3600,
                                unitPrice: result.unitPrice, rentSun: result.estimateTrx, quotedAt: now)

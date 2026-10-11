@@ -31,3 +31,4 @@
 - https://docs.tronsave.io/developers/code-examples/buy-with-private-key
 
 主网租金字段 estimateTrx 单位是 SUN；unitPrice 实测可能带小数，必须以 Decimal 保真，不转换为整数或用二进制浮点计算金额。正式收款地址取官方主网示例，不能接受报价响应临时替换收款人。
+主网实测发现 estimateTrx 对小数 SUN 向下取整；必须按该规则核对 unitPrice × resourceAmount，否则会把有效报价误判为不可用。超出该规则或资源不足仍拒绝。
