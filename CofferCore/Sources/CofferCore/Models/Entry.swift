@@ -5,6 +5,7 @@ public enum EntryType: String, Codable, Sendable, CaseIterable {
     case login, access
     case apiKey = "api_key"
     case sshKey = "ssh_key"
+    case server
     case database
     case totp
     case secureNote = "secure_note"
@@ -152,6 +153,7 @@ public enum EntryPayload: Codable, Hashable, Sendable {
     case access(AccessPayload)
     case apiKey(APIKeyPayload)
     case sshKey(SSHKeyPayload)
+    case server(ServerPayload)
     case database(DatabasePayload)
     case totp(TOTPPayload)
     case secureNote(SecureNotePayload)
@@ -186,6 +188,11 @@ public enum EntryPayload: Codable, Hashable, Sendable {
            let payload = try? JSONDecoder().decode(DatabasePayload.self, from: data) {
             self = .database(payload); return
         }
+        if let value = dict["server"], case .object(let inner) = value,
+           let zero = inner["_0"], let data = zero.jsonData,
+           let payload = try? JSONDecoder().decode(ServerPayload.self, from: data) {
+            self = .server(payload); return
+        }
         if let value = dict["totp"], case .object(let inner) = value,
            let zero = inner["_0"], let data = zero.jsonData,
            let payload = try? JSONDecoder().decode(TOTPPayload.self, from: data) {
@@ -210,6 +217,7 @@ public enum EntryPayload: Codable, Hashable, Sendable {
         case .access(let p): try container.encode(Self.wrap("access", p))
         case .apiKey(let p): try container.encode(Self.wrap("apiKey", p))
         case .sshKey(let p): try container.encode(Self.wrap("sshKey", p))
+        case .server(let p): try container.encode(Self.wrap("server", p))
         case .database(let p): try container.encode(Self.wrap("database", p))
         case .totp(let p): try container.encode(Self.wrap("totp", p))
         case .secureNote(let p): try container.encode(Self.wrap("secureNote", p))
