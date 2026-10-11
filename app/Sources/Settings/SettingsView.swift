@@ -12,6 +12,10 @@ struct SettingsView: View {
     @State private var showingChangePassword = false
     @State private var confirmRestore = false
     @State private var confirmReset = false
+    @State private var apiKeyCheck: Task<Void, Never>?
+    @State private var checkingAPIKey = false
+    @State private var apiKeyCheckResult: String?
+    @State private var apiKeyValid = false
 
     private struct Choice: Identifiable {
         let label: String
@@ -46,9 +50,22 @@ struct SettingsView: View {
             securitySection
             Section("钱包") {
                 SecureField("TronGrid API key（选填）", text: $appSettings.trongridApiKey)
-                Text("匿名请求额度较低。可在 TronGrid 创建自己的 API key，填在此处提高查询稳定性。")
+                Text(appSettings.trongridApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                     ? "未配置：余额和转账查询正在使用匿名额度，容易受限流影响。"
+                     : "已填写：新发起的余额、报价和转账请求会自动使用此 key，无需重启。")
                     .font(.caption).foregroundStyle(.secondary)
-                Link("打开 TronGrid", destination: URL(string: "https://www.trongrid.io/")!)
+                Text("在 TronGrid 注册或登录 → API Keys → 创建 key → 粘贴到上方 → 点验证。key 自动保存，不要把它发到聊天里。")
+                    .font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Link("打开 TronGrid 控制台", destination: URL(string: "https://www.trongrid.io/")!)
+                    Spacer()
+                    if checkingAPIKey { ProgressView().controlSize(.small) }
+                    Button("验证 API key", action: verifyTronGridKey)
+                        .disabled(checkingAPIKey || appSettings.trongridApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                if let apiKeyCheckResult {
+                    Text(apiKeyCheckResult).font(.caption).foregroundStyle(apiKeyValid ? .green : .orange)
+                }
                 Picker("余额缓存", selection: $appSettings.balanceCacheSeconds) {
                     Text("1 分钟").tag(60)
                     Text("5 分钟").tag(300)
@@ -73,6 +90,10 @@ struct SettingsView: View {
         .onAppear { reseedPickers() }
         .onChange(of: unlock.isUnlocked) { reseedPickers() }
         .onChange(of: appSettings.hotkey) { registrationFailed = !app.reRegisterHotkey() }
+        .onChange(of: appSettings.trongridApiKey) {
+            apiKeyCheck?.cancel(); checkingAPIKey = false; apiKeyCheckResult = nil; apiKeyValid = false
+        }
+        .onDisappear { apiKeyCheck?.cancel(); checkingAPIKey = false }
         .sheet(isPresented: $showingChangePassword) {
             ChangeMasterPasswordSheet()
                 .environmentObject(app)
@@ -93,6 +114,23 @@ struct SettingsView: View {
             Button("删除并重置", role: .destructive) {
                 resetVault()
             }
+        }
+    }
+
+    private func verifyTronGridKey() {
+        let key = appSettings.trongridApiKey
+        checkingAPIKey = true; apiKeyCheckResult = nil; apiKeyValid = false
+        apiKeyCheck = Task { @MainActor in
+            do {
+                try await TronGridClient(http: URLSessionHTTP(), apiKey: key).verifyAPIKey()
+                try Task.checkCancellation()
+                apiKeyValid = true
+                apiKeyCheckResult = "验证通过：TronGrid 已接受带 key 的只读请求。服务商额度与限流规则仍适用。"
+            } catch {
+                guard !Task.isCancelled else { return }
+                apiKeyCheckResult = error.localizedDescription
+            }
+            checkingAPIKey = false
         }
     }
 

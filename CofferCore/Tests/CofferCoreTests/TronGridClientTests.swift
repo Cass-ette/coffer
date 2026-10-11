@@ -133,4 +133,27 @@ final class TronGridClientTests: XCTestCase {
         XCTAssertFalse(cached.isFresh(at: Date(timeIntervalSince1970: 400), maxAge: 300))
         XCTAssertFalse(cached.isFresh(at: Date(timeIntervalSince1970: 99), maxAge: 300))
     }
+
+    func testAPIKeyCheckUsesFreshAuthenticatedChainRequest() async throws {
+        let mock = MockHTTP()
+        mock.stubs["/wallet/getchainparameters"] = Data(#"{"chainParameter":[{"key":"getEnergyFee","value":100},{"key":"getTransactionFee","value":1000}]}"#.utf8)
+        try await TronGridClient(http: mock, apiKey: "  personal-key  ").verifyAPIKey()
+        XCTAssertEqual(mock.posted.map(\.path), ["/wallet/getchainparameters"])
+        XCTAssertEqual(mock.headers["TRON-PRO-API-KEY"], "personal-key")
+        XCTAssertEqual(mock.headers["Cache-Control"], "no-cache")
+    }
+
+    func testAPIKeyCheckRejectsMissingKeyAndInvalidResponse() async throws {
+        let mock = MockHTTP()
+        do {
+            try await TronGridClient(http: mock).verifyAPIKey()
+            XCTFail("Anonymous request cannot confirm an API key")
+        } catch TronGridError.missingAPIKey { }
+        XCTAssertTrue(mock.posted.isEmpty)
+        mock.stubs["/wallet/getchainparameters"] = Data(#"{"chainParameter":[]}"#.utf8)
+        do {
+            try await TronGridClient(http: mock, apiKey: "personal-key").verifyAPIKey()
+            XCTFail("Malformed chain data cannot confirm a working key")
+        } catch TronGridError.badResponse { }
+    }
 }

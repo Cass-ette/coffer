@@ -113,15 +113,17 @@ public struct CachedTronBalances: Equatable, Sendable {
 }
 
 public enum TronGridError: LocalizedError, Equatable {
-    case http(Int), badResponse, invalidAddress
+    case http(Int), badResponse, invalidAddress, missingAPIKey
     case rateLimited(retryAfterSeconds: Int)
     public var errorDescription: String? {
         switch self {
         case .rateLimited(let seconds): return "TronGrid 暂时限流，已暂停请求；请约 \(seconds) 秒后重试。也可在“设置 → 钱包”填写自己的 API key。"
         case .http(429): return "TronGrid 请求过于频繁，请稍后重试或在设置中填写 API key"
+        case .http(401), .http(403): return "TronGrid API key 无效、未授权或受访问限制，请在“设置 → 钱包”核对 key 及 TronGrid 控制台的限制设置"
         case .http(let code): return "TronGrid 请求失败（HTTP \(code)），请稍后重试"
         case .badResponse: return "TronGrid 返回的数据无效，请稍后重试"
         case .invalidAddress: return "Tron 地址或校验位无效"
+        case .missingAPIKey: return "请先填写自己的 TronGrid API key"
         }
     }
 }
@@ -135,6 +137,19 @@ public final class TronGridClient {
         self.http = http
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         self.headers = trimmed.isEmpty ? [:] : ["TRON-PRO-API-KEY": trimmed]
+    }
+
+    /// Verifies the configured credential with a fresh public query. Never reads wallet data or signs.
+    public func verifyAPIKey() async throws {
+        guard headers["TRON-PRO-API-KEY"] != nil else { throw TronGridError.missingAPIKey }
+        var checkHeaders = headers
+        checkHeaders["Cache-Control"] = "no-cache"
+        let object = try WalletJSON.object(await http.post("/wallet/getchainparameters", body: [:], headers: checkHeaders))
+        guard let rows = object["chainParameter"] as? [[String: Any]],
+              let energy = rows.first(where: { $0["key"] as? String == "getEnergyFee" })
+                .flatMap({ WalletJSON.integer($0["value"]) }), energy > 0,
+              let bandwidth = rows.first(where: { $0["key"] as? String == "getTransactionFee" })
+                .flatMap({ WalletJSON.integer($0["value"]) }), bandwidth > 0 else { throw TronGridError.badResponse }
     }
 
     public func balances(address: String) async throws -> TronBalances {
