@@ -109,6 +109,55 @@ final class TronTransferServiceTests: XCTestCase {
         } catch { }
     }
 
+    func testDelegatedEnergyReducesOnlyTheTRXBurnNotTheExecutionBudget() async throws {
+        let mock = MockHTTP()
+        stubFee(mock)
+        mock.stubs["/wallet/getaccountresource"] = Data(#"{"freeNetLimit":600,"EnergyLimit":60000,"EnergyUsed":10000}"#.utf8)
+        let fee = try await TronTransferService(http: mock).estimateFee(from: Self.address, to: Self.address, usdtSun: 1)
+        XCTAssertEqual(fee.energyAvailable, 50_000)
+        XCTAssertEqual(fee.energyBurned, 14_317)
+        XCTAssertEqual(fee.feeSun, 14_317 * 420)
+        XCTAssertEqual(fee.feeLimitSun, 64_317 * 420)
+    }
+
+    func testEnoughResourcesAllowTransferWithoutTRX() async throws {
+        let mock = MockHTTP()
+        stubBalances(mock, trx: 0)
+        stubFee(mock)
+        mock.stubs["/wallet/getaccountresource"] = Data(#"{"freeNetLimit":600,"EnergyLimit":100000}"#.utf8)
+        let quote = try await TronTransferService(http: mock).quote(from: Self.address, to: Self.address, usdtSun: 1)
+        XCTAssertEqual(quote.fee.feeSun, 0)
+        XCTAssertGreaterThan(quote.fee.feeLimitSun, 0)
+    }
+
+    func testDelegatedBandwidthIsUsedBeforeFreeBandwidth() async throws {
+        let mock = MockHTTP()
+        stubFee(mock)
+        mock.stubs["/wallet/getaccountresource"] = Data(#"{"freeNetLimit":600,"freeNetUsed":590,"NetLimit":400,"NetUsed":20}"#.utf8)
+        let fee = try await TronTransferService(http: mock).estimateFee(from: Self.address, to: Self.address, usdtSun: 1)
+        XCTAssertEqual(fee.bandwidthBurned, 0)
+    }
+
+    func testInsufficientBandwidthPoolsCannotBeAddedTogether() async throws {
+        let mock = MockHTTP()
+        stubFee(mock)
+        mock.stubs["/wallet/getaccountresource"] = Data(#"{"freeNetLimit":600,"freeNetUsed":300,"NetLimit":300}"#.utf8)
+        let fee = try await TronTransferService(http: mock).estimateFee(from: Self.address, to: Self.address, usdtSun: 1)
+        XCTAssertEqual(fee.bandwidthBurned, 345)
+    }
+
+    func testInvalidResourceCountersFailClosed() async {
+        for invalid in [#""EnergyLimit":-1"#, #""EnergyUsed":true"#, #""NetLimit":1.5"#, #""EnergyLimit":9223372036854775808"#] {
+            let mock = MockHTTP()
+            stubFee(mock)
+            mock.stubs["/wallet/getaccountresource"] = Data("{\"freeNetLimit\":600,\(invalid)}".utf8)
+            do {
+                _ = try await TronTransferService(http: mock).estimateFee(from: Self.address, to: Self.address, usdtSun: 1)
+                XCTFail("Malformed resource counters must not be treated as free resources")
+            } catch { }
+        }
+    }
+
     func testZeroResourceUsageMayBeOmittedByNode() async throws {
         let mock = MockHTTP()
         stubFee(mock)

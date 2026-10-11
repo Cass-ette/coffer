@@ -235,7 +235,7 @@ struct TransferSheet: View {
             do {
                 let receipt = try await service().sendUSDT(
                     from: address, to: draft.to, usdtSun: draft.amountSun,
-                    feeLimitSun: draft.quote.fee.feeSun, signingKey: {
+                    feeLimitSun: draft.quote.fee.feeLimitSun, signingKey: {
                         try Task.checkCancellation()
                         guard unlock.isUnlocked,
                               let entry = unlock.document?.entries.first(where: { $0.id == entryID }),

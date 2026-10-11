@@ -42,21 +42,35 @@ public struct TronFee: Equatable, Sendable {
     public let bandwidthBurned: Int64
     public let bandwidthPrice: Int64
     public let feeSun: Int64
+    public let resources: TronResources
+    public let bandwidthRequired: Int64
+    public let energyFeeSun: Int64
+    public let bandwidthFeeSun: Int64
+    /// Execution budget includes delegated Energy; it is NOT the expected TRX burn.
+    public let feeLimitSun: Int64
+    public var energyAvailable: Int64 { resources.energy }
+    public var energyBurned: Int64 { max(0, energy - energyAvailable) }
 
     public init(energy: Int64, energyPrice: Int64, bandwidthBurned: Int64,
-                bandwidthPrice: Int64) throws {
-        guard energy > 0, energyPrice > 0, bandwidthBurned >= 0, bandwidthPrice > 0 else {
+                bandwidthPrice: Int64, resources: TronResources? = nil,
+                bandwidthRequired: Int64 = 345) throws {
+        guard energy > 0, energyPrice > 0, bandwidthBurned >= 0, bandwidthPrice > 0,
+              bandwidthRequired > 0, bandwidthBurned <= bandwidthRequired else {
             throw TronGridError.badResponse
         }
-        let (energyFee, energyOverflow) = energy.multipliedReportingOverflow(by: energyPrice)
-        let (bandwidthFee, bandwidthOverflow) = bandwidthBurned.multipliedReportingOverflow(by: bandwidthPrice)
-        let (total, totalOverflow) = energyFee.addingReportingOverflow(bandwidthFee)
-        guard !energyOverflow, !bandwidthOverflow, !totalOverflow else { throw TronGridError.badResponse }
+        let quota = try resources ?? TronResources(energy: 0, bandwidth: 0, freeBandwidth: 0)
+        let energyFee = try WalletJSON.multiply(max(0, energy - quota.energy), energyPrice)
+        let bandwidthFee = try WalletJSON.multiply(bandwidthBurned, bandwidthPrice)
         self.energy = energy
         self.energyPrice = energyPrice
         self.bandwidthBurned = bandwidthBurned
         self.bandwidthPrice = bandwidthPrice
-        self.feeSun = total
+        self.feeSun = try WalletJSON.add(energyFee, bandwidthFee)
+        self.resources = quota
+        self.bandwidthRequired = bandwidthRequired
+        self.energyFeeSun = energyFee
+        self.bandwidthFeeSun = bandwidthFee
+        self.feeLimitSun = try WalletJSON.multiply(energy, energyPrice)
     }
 }
 
@@ -89,13 +103,14 @@ public final class TronTransferService {
         try await quote(from: from, to: to, usdtSun: usdtSun).fee
     }
 
-    public func quote(from: String, to: String, usdtSun: Int64) async throws -> TronTransferQuote {
+    public func quote(from: String, to: String, usdtSun: Int64,
+                      requireFeeBalance: Bool = true) async throws -> TronTransferQuote {
         try Self.validateInputs(from: from, to: to, amount: usdtSun)
         let balances = try await TronGridClient(http: http, apiKey: headers["TRON-PRO-API-KEY"] ?? "")
             .balances(address: from)
         guard balances.usdtSun >= usdtSun else { throw TransferValidationError.insufficientUSDT }
         let fee = try await estimateFee(from: from, to: to, usdtSun: usdtSun)
-        guard balances.trxBalance >= fee.feeSun else {
+        guard !requireFeeBalance || balances.trxBalance >= fee.feeSun else {
             throw TransferValidationError.insufficientTRXForFee(neededSun: fee.feeSun, haveSun: balances.trxBalance)
         }
         return TronTransferQuote(balances: balances, fee: fee)
@@ -129,24 +144,18 @@ public final class TronTransferService {
             throw TronGridError.badResponse
         }
 
-        let accountData = try await http.post("/wallet/getaccountresource", body: [
-            "address": from, "visible": true
-        ], headers: headers)
-        let account = try Self.jsonObject(accountData)
-        guard let freeLimit = Self.integer(account["freeNetLimit"]),
-              account["freeNetUsed"] == nil || Self.integer(account["freeNetUsed"]) != nil else {
-            throw TronGridError.badResponse
-        }
-        let freeUsed = Self.integer(account["freeNetUsed"]) ?? 0
-        guard (0...1_000_000_000).contains(freeLimit), (0...1_000_000_000).contains(freeUsed) else {
-            throw TronGridError.badResponse
-        }
-        // TRC-20 transfer is about 345 bandwidth points. Stake management is outside this release.
-        let free = max(0, freeLimit - freeUsed)
-        // TRON requires the free allowance to cover the entire transaction; otherwise all bytes burn TRX.
-        let burned: Int64 = free >= 345 ? 0 : 345
+        let resources = try await resources(address: from)
+        let burned = try resources.consumingBandwidth(345).burned
         return try TronFee(energy: energy, energyPrice: energyPrice,
-                           bandwidthBurned: burned, bandwidthPrice: bandwidthPrice)
+                           bandwidthBurned: burned, bandwidthPrice: bandwidthPrice, resources: resources)
+    }
+
+    public func resources(address: String) async throws -> TronResources {
+        guard TronWalletService().validateAddress(address) else { throw TransferValidationError.invalidAddress }
+        let accountData = try await http.post("/wallet/getaccountresource", body: [
+            "address": address, "visible": true
+        ], headers: headers)
+        return try TronResources(response: Self.jsonObject(accountData))
     }
 
     public func sendUSDT(from: String, to: String, usdtSun: Int64,
