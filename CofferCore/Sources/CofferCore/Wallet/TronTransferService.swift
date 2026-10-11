@@ -48,6 +48,7 @@ public struct TronFee: Equatable, Sendable {
     public let bandwidthFeeSun: Int64
     /// Execution budget includes delegated Energy; it is NOT the expected TRX burn.
     public let feeLimitSun: Int64
+    public let maximumFeeSun: Int64
     public var energyAvailable: Int64 { resources.energy }
     public var energyBurned: Int64 { max(0, energy - energyAvailable) }
 
@@ -70,7 +71,15 @@ public struct TronFee: Equatable, Sendable {
         self.bandwidthRequired = bandwidthRequired
         self.energyFeeSun = energyFee
         self.bandwidthFeeSun = bandwidthFee
-        self.feeLimitSun = try WalletJSON.multiply(energy, energyPrice)
+        let estimatedEnergyBudget = try WalletJSON.multiply(energy, energyPrice)
+        // fee_limit is a ceiling, not a charge. A small headroom avoids burning the
+        // whole estimate on an execution that needs marginally more Energy.
+        let headroom = estimatedEnergyBudget / 5 + (estimatedEnergyBudget % 5 == 0 ? 0 : 1)
+        self.feeLimitSun = try WalletJSON.add(estimatedEnergyBudget, headroom)
+        // At most the ceiling not covered by currently available Energy can burn TRX.
+        let coveredEnergy = quota.energy > feeLimitSun / energyPrice
+            ? feeLimitSun : try WalletJSON.multiply(quota.energy, energyPrice)
+        self.maximumFeeSun = try WalletJSON.add(max(0, feeLimitSun - coveredEnergy), bandwidthFee)
     }
 }
 
@@ -167,6 +176,8 @@ public final class TronTransferService {
     /// Reads the key only after the unsigned transaction has been built and checked.
     /// The caller's provider should fetch it from the unlocked vault after a fresh authentication.
     public func sendUSDT(from: String, to: String, usdtSun: Int64, feeLimitSun: Int64,
+                         bandwidthLimit: Int64 = 345,
+                         willBroadcast: @MainActor (String, Date) async throws -> Void = { _, _ in },
                          signingKey: @MainActor () throws -> Data) async throws -> TransferReceipt {
         try Self.validateInputs(from: from, to: to, amount: usdtSun)
         guard feeLimitSun > 0 else { throw TransferValidationError.invalidAmount }
@@ -191,7 +202,9 @@ public final class TronTransferService {
               let callData = Self.hexData("a9059cbb" + (Self.abiEncode(to: to, amount: usdtSun) ?? "")),
               TransactionVerifier.matchesTriggerSmartContract(
                   rawData: rawData, owner: owner, contract: contract,
-                  callData: callData, feeLimit: feeLimitSun) else {
+                  callData: callData, feeLimit: feeLimitSun),
+              let bandwidth = TransactionVerifier.signedBandwidth(rawData: rawData), bandwidth <= bandwidthLimit,
+              let expiration = TransactionVerifier.expiration(rawData: rawData) else {
             throw TronGridError.badResponse
         }
 
@@ -209,6 +222,7 @@ public final class TronTransferService {
         var body = transaction
         body["signature"] = [Self.hexString(signature)]
         try Task.checkCancellation()
+        try await willBroadcast(hash, Date(timeIntervalSince1970: Double(expiration) / 1000))
         let broadcastData: Data
         do {
             broadcastData = try await http.post("/wallet/broadcasttransaction", body: body, headers: headers)
@@ -226,12 +240,83 @@ public final class TronTransferService {
         throw BroadcastError.uncertain(hash)
     }
 
+    public func signRentalPayment(from: String, amountSun: Int64, now: Date = Date(),
+                                  signingKey: @MainActor () throws -> Data) async throws -> SignedTronRentalPayment {
+        let to = TronSaveClient.paymentAddress
+        try Self.validateInputs(from: from, to: to, amount: amountSun)
+        let data = try await http.post("/wallet/createtransaction", body: [
+            "owner_address": Self.hex41(from)!, "to_address": Self.hex41(to)!,
+            "amount": amountSun, "visible": false
+        ], headers: headers)
+        let transaction = try Self.jsonObject(data)
+        guard let hash = transaction["txID"] as? String,
+              let hashData = Self.hexData(hash), hashData.count == 32,
+              let rawHex = transaction["raw_data_hex"] as? String, let rawData = Self.hexData(rawHex),
+              Data(SHA256.hash(data: rawData)) == hashData,
+              let raw = transaction["raw_data"] as? [String: Any],
+              let expiration = Self.integer(raw["expiration"]),
+              Self.matchesRentalPayment(transaction, from: from, amount: amountSun),
+              let owner = try? Address(address: from), let receiver = try? Address(address: to),
+              TransactionVerifier.matchesTransfer(rawData: rawData, owner: owner, recipient: receiver,
+                                                  amount: amountSun, expiration: expiration),
+              let bandwidth = TransactionVerifier.signedBandwidth(rawData: rawData),
+              bandwidth <= TronRentalPlan.paymentBandwidth else { throw RentalError.paymentMismatch }
+        let expires = Date(timeIntervalSince1970: Double(expiration) / 1000)
+        guard (5...120).contains(expires.timeIntervalSince(now)) else { throw RentalError.expired }
+        try Task.checkCancellation()
+        var key = try await signingKey()
+        defer { key.resetBytes(in: 0..<key.count) }
+        guard TronWalletService().isValidPrivateKeyData(key),
+              try Signer.address(privateKey: key).base58 == from else { throw TransferValidationError.privateKeyMismatch }
+        let signature = try Signer.sign(hash: hashData, privateKey: key)
+        key.resetBytes(in: 0..<key.count)
+        guard signature.count == 65 else { throw TronGridError.badResponse }
+        var signed = transaction
+        signed["signature"] = [Self.hexString(signature)]
+        return SignedTronRentalPayment(txHash: hash, payload: try JSONSerialization.data(withJSONObject: signed),
+                                       from: from, amountSun: amountSun, expiration: expires, bandwidth: bandwidth)
+    }
+
+    public func executionReceipt(hash: String) async throws -> TronExecutionReceipt? {
+        guard let bytes = Self.hexData(hash), bytes.count == 32 else { throw TronGridError.badResponse }
+        let data = try await http.post("/wallet/gettransactioninfobyid", body: ["value": hash], headers: headers)
+        return try TronExecutionReceipt.parse(data, expectedHash: hash)
+    }
+
+    /// Only unlock a missing transaction after the solid chain has passed its signed expiration.
+    public func isExpiredUnconfirmed(hash: String, expiration: Date) async throws -> Bool {
+        guard let bytes = Self.hexData(hash), bytes.count == 32 else { throw TronGridError.badResponse }
+        let block = try Self.jsonObject(await http.post("/walletsolidity/getnowblock", body: [:], headers: headers))
+        guard let header = block["block_header"] as? [String: Any],
+              let raw = header["raw_data"] as? [String: Any],
+              let timestamp = Self.integer(raw["timestamp"]), timestamp > 0 else { throw TronGridError.badResponse }
+        guard Double(timestamp) / 1000 > expiration.timeIntervalSince1970 + 60 else { return false }
+        let solid = try Self.jsonObject(await http.post("/walletsolidity/gettransactionbyid", body: ["value": hash], headers: headers))
+        guard solid.isEmpty else { return false }
+        let full = try Self.jsonObject(await http.post("/wallet/gettransactionbyid", body: ["value": hash], headers: headers))
+        return full.isEmpty
+    }
+
     private static func validateInputs(from: String, to: String, amount: Int64) throws {
         let wallet = TronWalletService()
         guard wallet.validateAddress(from), wallet.validateAddress(to) else {
             throw TransferValidationError.invalidAddress
         }
         guard amount > 0 else { throw TransferValidationError.invalidAmount }
+    }
+
+    private static func matchesRentalPayment(_ transaction: [String: Any], from: String, amount: Int64) -> Bool {
+        guard Self.truth(transaction["visible"]) == false,
+              let raw = transaction["raw_data"] as? [String: Any],
+              (integer(raw["fee_limit"]) ?? 0) == 0,
+              let contracts = raw["contract"] as? [[String: Any]], contracts.count == 1,
+              contracts[0]["type"] as? String == "TransferContract",
+              let parameter = contracts[0]["parameter"] as? [String: Any],
+              let value = parameter["value"] as? [String: Any],
+              (value["owner_address"] as? String)?.lowercased() == hex41(from),
+              (value["to_address"] as? String)?.lowercased() == hex41(TronSaveClient.paymentAddress),
+              integer(value["amount"]) == amount else { return false }
+        return true
     }
 
     private static func matchesTransaction(_ transaction: [String: Any], from: String, to: String,

@@ -117,7 +117,9 @@ final class TronTransferServiceTests: XCTestCase {
         XCTAssertEqual(fee.energyAvailable, 50_000)
         XCTAssertEqual(fee.energyBurned, 14_317)
         XCTAssertEqual(fee.feeSun, 14_317 * 420)
-        XCTAssertEqual(fee.feeLimitSun, 64_317 * 420)
+        XCTAssertEqual(fee.maximumFeeSun, fee.feeLimitSun - 50_000 * 420)
+        XCTAssertEqual(fee.feeLimitSun, 64_317 * 420 + (64_317 * 420 + 4) / 5)
+        XCTAssertEqual(fee.feeSun, 14_317 * 420)
     }
 
     func testEnoughResourcesAllowTransferWithoutTRX() async throws {
@@ -127,7 +129,9 @@ final class TronTransferServiceTests: XCTestCase {
         mock.stubs["/wallet/getaccountresource"] = Data(#"{"freeNetLimit":600,"EnergyLimit":100000}"#.utf8)
         let quote = try await TronTransferService(http: mock).quote(from: Self.address, to: Self.address, usdtSun: 1)
         XCTAssertEqual(quote.fee.feeSun, 0)
+        XCTAssertEqual(quote.fee.maximumFeeSun, 0)
         XCTAssertGreaterThan(quote.fee.feeLimitSun, 0)
+        XCTAssertEqual(quote.fee.feeSun, 0)
     }
 
     func testDelegatedBandwidthIsUsedBeforeFreeBandwidth() async throws {
@@ -244,6 +248,55 @@ final class TronTransferServiceTests: XCTestCase {
         XCTAssertEqual(signatures.count, 1)
         XCTAssertEqual(signatures.first?.count, 130)
         XCTAssertEqual(broadcast.body["txID"] as? String, receipt.txHash)
+    }
+
+    func testFailureToPersistHashStopsBeforeBroadcast() async throws {
+        let mock = MockHTTP()
+        stubBuiltTransaction(mock)
+        do {
+            _ = try await TronTransferService(http: mock).sendUSDT(
+                from: Self.address, to: Self.address, usdtSun: 1_000_000, feeLimitSun: 30_000_000,
+                willBroadcast: { _, expiration in
+                    XCTAssertGreaterThan(expiration.timeIntervalSince1970, 0)
+                    throw CocoaError(.fileWriteNoPermission)
+                }, signingKey: { try TronWalletService().privateKeyData(fromMnemonic: Self.mnemonic) })
+            XCTFail("An unrecorded payment must never be submitted")
+        } catch { }
+        XCTAssertFalse(mock.posted.contains { $0.path == "/wallet/broadcasttransaction" })
+    }
+
+    func testUnexpectedSignedBandwidthStopsBeforeReadingKey() async throws {
+        let mock = MockHTTP()
+        stubBuiltTransaction(mock)
+        var keyRead = false
+        do {
+            _ = try await TronTransferService(http: mock).sendUSDT(
+                from: Self.address, to: Self.address, usdtSun: 1_000_000, feeLimitSun: 30_000_000,
+                bandwidthLimit: 100, signingKey: {
+                    keyRead = true
+                    return try TronWalletService().privateKeyData(fromMnemonic: Self.mnemonic)
+                })
+            XCTFail("A transaction exceeding confirmed bandwidth must not be signed")
+        } catch { }
+        XCTAssertFalse(keyRead)
+    }
+
+    func testExpiryRecoveryRequiresAbsentTransactionAndSolidChainPastDeadline() async throws {
+        let mock = MockHTTP()
+        let hash = String(repeating: "a", count: 64)
+        let expiry = Date(timeIntervalSince1970: 1000)
+        mock.stubs["/wallet/gettransactionbyid"] = Data("{}".utf8)
+        mock.stubs["/walletsolidity/gettransactionbyid"] = Data("{}".utf8)
+        mock.stubs["/walletsolidity/getnowblock"] = Data(#"{"block_header":{"raw_data":{"timestamp":1061000}}}"#.utf8)
+        let service = TronTransferService(http: mock)
+        let expired = try await service.isExpiredUnconfirmed(hash: hash, expiration: expiry)
+        XCTAssertTrue(expired)
+        mock.stubs["/walletsolidity/getnowblock"] = Data(#"{"block_header":{"raw_data":{"timestamp":1059000}}}"#.utf8)
+        let tooEarly = try await service.isExpiredUnconfirmed(hash: hash, expiration: expiry)
+        XCTAssertFalse(tooEarly)
+        mock.stubs["/wallet/gettransactionbyid"] = Data(#"{"txID":"seen"}"#.utf8)
+        let stillKnown = try await service.isExpiredUnconfirmed(hash: hash, expiration: expiry)
+        XCTAssertFalse(stillKnown)
     }
 
     func testTamperedBuilderResponseNeverSignsOrBroadcasts() async throws {
