@@ -116,6 +116,8 @@ TronKit 平台与验证接口差异见 [README-COFFER.md](../../Vendor/TronKit/R
 
 用户追加的服务器 SSH 密码条目与“＋”分类入口已实现，见 [实施记录](plans/2026-10-11-server-and-create.md)。新增 server payload 保留现有 `_0` 磁盘形状；未迁移真实保险库。最新全量回归 **169/169**，App/CLI 最终构建通过，服务器创建/保存/复制与新入口仍待用户手测。
 
+最终新版 CLI 只读统计真实库 **150 条**，未输出内容。确认无 Coffer 进程后，已打开项目 `.build/Build/Products/Debug/Coffer.app` 并核对运行路径；这是启动确认，尚不代表用户解锁后的界面手测通过。
+
 - [x] T10：`31d493e`；带宽计费修正：`8f3ed23`。
 - [x] T11 代码：`5212d9d`；手测待完成。
 - [x] README 钱包说明与安全模型更新。
