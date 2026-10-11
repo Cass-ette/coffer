@@ -8,7 +8,7 @@
 ## 1. 当前状态（2026-10-11）
 
 - 仓库：`~/Projects/coffer`，**工作分支 `feature/wallet`**（从 main 拉出，后续任务都在这个分支提交）
-- CofferCore 当前回归：**165/165 绿**（`cd CofferCore && swift test`，原 68 项保留）
+- CofferCore 当前回归：**169/169 绿**（`cd CofferCore && swift test`，原 68 项保留）
 - 已完成代码：
   - **T0** 修测试套件（`d84c3f4`）：groupIDs/isHidden 签名演进没同步测试导致编译失败，已修
   - **T1** WalletPayload 数据模型（`d17205e`）：EntryType.wallet + EntryPayload.wallet + WalletPayload struct + SearchIndex 只搜地址不搜 secret
@@ -29,6 +29,8 @@
 ## 2. 剩余任务（全部在计划文档里有完整代码）
 
 用户追加官方 GasFree 独立钱包，代码、165 项回归及 App/CLI 构建已完成，见 [GasFree 计划](2026-10-11-wallet-gasfree.md)。凭证配置、实时服务报价与主网转出仍需用户在 App 手测；不自动转移普通钱包资金。TronGrid 设置已有 key 申请步骤、验证按钮和匿名额度提示。
+
+用户随后追加服务器 SSH 密码条目与“＋”入口优化，见 [服务器与创建入口计划](2026-10-11-server-and-create.md)。新增 server payload，原磁盘格式与旧条目保留；169 项回归通过。不得打开不支持未知类型保留的旧版应用。
 
 | # | 任务 | 一句话 |
 |---|------|--------|

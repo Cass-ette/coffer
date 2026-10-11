@@ -1,6 +1,7 @@
 import SwiftUI
 import CofferCore
 import UniformTypeIdentifiers
+import Combine
 
 struct EntryEditorView: View {
     let editing: Entry?
@@ -32,6 +33,15 @@ struct EntryEditorView: View {
     @State private var sshHost = ""
     @State private var sshUser = ""
     @State private var sshKey = ""
+    @State private var serverHost = ""
+    @State private var serverPort = "22"
+    @State private var serverUser = ""
+    @State private var serverAuthentication: ServerPayload.Authentication = .password
+    @State private var serverPassword = ""
+    @State private var serverPrivateKey = ""
+    @State private var serverPassphrase = ""
+    @State private var serverNetwork = "公网"
+    @State private var editingServerKey = false
     @State private var dbHost = ""
     @State private var dbPort = ""
     @State private var dbName = ""
@@ -65,12 +75,13 @@ struct EntryEditorView: View {
     private let maxAttachmentBytes = 2 * 1024 * 1024
     private let maxAttachmentCount = 5
 
-    init(editing: Entry?, preselectedGroupID: UUID? = nil) {
+    init(editing: Entry?, preselectedGroupID: UUID? = nil, initialType: EntryType = .login) {
         self.editing = editing
         self.preselectedGroupID = preselectedGroupID
         guard let e = editing else {
             // 新建条目时应用预选分组
             _groupID = State(initialValue: preselectedGroupID)
+            _type = State(initialValue: initialType)
             return
         }
         _type = State(initialValue: e.type)
@@ -99,6 +110,15 @@ struct EntryEditorView: View {
             _sshHost = State(initialValue: p.host)
             _sshUser = State(initialValue: p.user)
             _sshKey = State(initialValue: p.privateKey)
+        case .server(let p):
+            _serverHost = State(initialValue: p.host)
+            _serverPort = State(initialValue: String(p.port))
+            _serverUser = State(initialValue: p.username)
+            _serverAuthentication = State(initialValue: p.authentication)
+            _serverPassword = State(initialValue: p.password)
+            _serverPrivateKey = State(initialValue: p.privateKey)
+            _serverPassphrase = State(initialValue: p.passphrase)
+            _serverNetwork = State(initialValue: p.networkLocation)
         case .database(let p):
             _dbHost = State(initialValue: p.host)
             _dbPort = State(initialValue: p.port)
@@ -124,11 +144,15 @@ struct EntryEditorView: View {
             Section("基本信息") {
                 if editing == nil {
                     Picker("类型", selection: $type) {
-                        ForEach(EntryType.allCases.filter { $0 != .unknown }, id: \.self) { t in
-                            Text(t.label).tag(t)
+                        ForEach(EntryCreationCategory.all) { category in
+                            Section(category.title) {
+                                ForEach(category.types, id: \.self) { t in
+                                    Label(t.label, systemImage: t.symbol).tag(t)
+                                }
+                            }
                         }
                     }
-                    .pickerStyle(.segmented)
+                    .pickerStyle(.menu)
                 }
                 TextField("标题（必填）", text: $title)
                 if type != .wallet {
@@ -181,6 +205,7 @@ struct EntryEditorView: View {
             }
         }
         .formStyle(.grouped)
+        .navigationTitle(editing == nil ? "新建\(type.label)" : "编辑\(type.label)")
         .disabled(isReadOnly)
         .frame(minWidth: 520, minHeight: 560)
         .onReceive(secondTimer) { now = $0 }
@@ -195,7 +220,7 @@ struct EntryEditorView: View {
             }
         }
         .sheet(isPresented: $showGenerator) {
-            PasswordGeneratorView(password: $loginPassword)
+            PasswordGeneratorView(password: type == .server ? $serverPassword : $loginPassword)
         }
         .sheet(isPresented: $showWalletSetup, onDismiss: {
             walletAuthenticated = false
@@ -237,11 +262,12 @@ struct EntryEditorView: View {
         .onChange(of: unlock.isUnlocked) { _, unlocked in
             if !unlocked {
                 clearWalletSecrets()
+                clearServerSecrets()
                 showWalletSetup = false
                 dismiss()
             }
         }
-        .onDisappear(perform: clearWalletSecrets)
+        .onDisappear { clearWalletSecrets(); clearServerSecrets() }
         .fileImporter(isPresented: $showFileImporter,
                       allowedContentTypes: [.image, .data],
                       allowsMultipleSelection: false) { result in
@@ -307,6 +333,8 @@ struct EntryEditorView: View {
                     ForEach(networks, id: \.self) { Text($0) }
                 }
             }
+        case .server:
+            serverSection
         case .totp:
             Section("2FA 验证码") {
                 TextField("种子（Base32）或完整 otpauth:// 链接", text: $totpInput, axis: .vertical)
@@ -404,6 +432,62 @@ struct EntryEditorView: View {
             .filter { !$0.isEmpty }
     }
 
+    private var serverPayload: ServerPayload {
+        let port = serverPort.utf8.allSatisfy({ (48...57).contains($0) }) ? Int(serverPort) : nil
+        return ServerPayload(host: serverHost.trimmingCharacters(in: .whitespacesAndNewlines), port: port ?? 0,
+            username: serverUser.trimmingCharacters(in: .whitespacesAndNewlines), authentication: serverAuthentication,
+            password: serverPassword, privateKey: serverPrivateKey, passphrase: serverPassphrase, networkLocation: serverNetwork)
+    }
+
+    private var serverSection: some View {
+        Section("服务器 · SSH") {
+            TextField("主机（域名或 IP）", text: $serverHost)
+            TextField("SSH 端口", text: $serverPort)
+            TextField("用户名（如 root、ubuntu）", text: $serverUser)
+            Picker("认证方式", selection: $serverAuthentication) {
+                ForEach(ServerPayload.Authentication.allCases, id: \.self) { method in Text(method.label).tag(method) }
+            }
+            if serverAuthentication == .password {
+                HStack {
+                    SecureField("服务器登录密码", text: $serverPassword)
+                    Button { showGenerator = true } label: { Image(systemName: "wand.and.stars") }
+                        .buttonStyle(.borderless).help("生成密码")
+                }
+            } else if serverAuthentication == .privateKey {
+                HStack {
+                    Text(serverPrivateKey.isEmpty ? "尚未填写私钥" : "已填写私钥（默认隐藏）").foregroundStyle(.secondary)
+                    Spacer()
+                    Button("从剪贴板粘贴") {
+                        if let value = NSPasteboard.general.string(forType: .string) { serverPrivateKey = value }
+                    }
+                    Button(editingServerKey ? "隐藏私钥" : "编辑私钥") { editingServerKey.toggle() }
+                }
+                if editingServerKey {
+                    TextEditor(text: $serverPrivateKey).font(.system(.body, design: .monospaced))
+                        .frame(height: 140)
+                }
+                SecureField("私钥口令（若有）", text: $serverPassphrase)
+            } else {
+                Text("凭证由本机 SSH agent 或 ~/.ssh/config 提供，这里记录连接信息。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Picker("网络位置", selection: $serverNetwork) {
+                ForEach(networks, id: \.self) { Text($0) }
+            }
+            if let command = serverPayload.sshCommand {
+                LabeledContent("连接命令") {
+                    Text(command).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                }
+                Text("仅复制连接命令。密码由终端提示输入；私钥模式需先在本机 SSH 配置好密钥。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func clearServerSecrets() {
+        serverPassword = ""; serverPrivateKey = ""; serverPassphrase = ""; editingServerKey = false
+    }
+
     private func save() {
         guard !isReadOnly, unlock.isUnlocked else { return }
         let payload: EntryPayload
@@ -422,6 +506,11 @@ struct EntryEditorView: View {
                                             secret: apiKeySecret, envPrefix: apiKeyEnv))
         case .sshKey:
             payload = .sshKey(SSHKeyPayload(host: sshHost, user: sshUser, privateKey: sshKey))
+        case .server:
+            let server = serverPayload
+            if let connectionError = server.connectionError { error = connectionError; return }
+            payload = .server(server)
+            if subtitle.isEmpty { subtitle = "\(server.host):\(server.port)" }
         case .database:
             payload = .database(DatabasePayload(host: dbHost, port: dbPort, databaseName: dbName,
                                                 username: dbUsername, password: dbPassword,

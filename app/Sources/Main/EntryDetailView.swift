@@ -184,6 +184,16 @@ struct EntryDetailView: View {
             add("主机", p.host)
             add("用户", p.user)
             add("私钥", p.privateKey, secret: true, mono: true)
+        case .server(let p):
+            add("主机", p.host, mono: true)
+            add("SSH 端口", String(p.port))
+            add("用户名", p.username)
+            add("认证方式", p.authentication.label)
+            add("登录密码", p.password, secret: true)
+            add("私钥", p.privateKey, secret: true, mono: true)
+            add("私钥口令", p.passphrase, secret: true)
+            add("网络", p.networkLocation)
+            if let command = p.sshCommand { add("SSH 命令（凭证需在终端提供）", command, mono: true) }
         case .database(let p):
             add("主机", p.host)
             add("端口", p.port)

@@ -35,6 +35,14 @@ enum CopyTargets {
             if !p.password.isEmpty { t.append(CopyTarget(label: "密码", value: p.password)) }
             if !p.host.isEmpty { t.append(CopyTarget(label: "主机", value: p.host)) }
             return t
+        case .server(let p):
+            var targets: [CopyTarget] = []
+            if !p.username.isEmpty { targets.append(CopyTarget(label: "用户名", value: p.username)) }
+            if !p.password.isEmpty { targets.append(CopyTarget(label: "登录密码", value: p.password)) }
+            if !p.privateKey.isEmpty { targets.append(CopyTarget(label: "私钥", value: p.privateKey)) }
+            if !p.passphrase.isEmpty { targets.append(CopyTarget(label: "私钥口令", value: p.passphrase)) }
+            if let command = p.sshCommand { targets.append(CopyTarget(label: "SSH 命令", value: command)) }
+            return targets
         case .totp(let p):
             guard let secret = try? Base32.decode(p.secretBase32) else { return [] }
             let cfg = TOTPConfig(secret: secret,

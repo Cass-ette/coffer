@@ -309,6 +309,13 @@ func printPayload(_ payload: EntryPayload) {
         print("  Host: \(p.host)")
         print("  User: \(p.user)")
         print("  Private Key: [HIDDEN]")
+    case .server(let p):
+        print("  Host: \(p.host)")
+        print("  Port: \(p.port)")
+        print("  Username: \(p.username)")
+        print("  Authentication: \(p.authentication.rawValue)")
+        print("  Password / Private Key / Passphrase: [HIDDEN]")
+        print("  Network: \(p.networkLocation)")
     case .database(let p):
         print("  Host: \(p.host)")
         print("  Port: \(p.port)")
@@ -477,6 +484,9 @@ func buildPayload(type: EntryType, args: [String: String]) throws -> EntryPayloa
     case .wallet:
         throw NSError(domain: "CofferCLI", code: 1,
                       userInfo: [NSLocalizedDescriptionKey: "wallet 条目请在 App 内创建（含助记词展示确认流程）"])
+    case .server:
+        throw NSError(domain: "CofferCLI", code: 1,
+                      userInfo: [NSLocalizedDescriptionKey: "服务器凭证请在 App 内创建和编辑，不通过命令行参数传入秘密"])
     case .unknown:
         throw NSError(domain: "CofferCLI", code: 1,
                       userInfo: [NSLocalizedDescriptionKey: "未知类型条目不可由 CLI 创建"])

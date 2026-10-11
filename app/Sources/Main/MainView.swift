@@ -98,9 +98,13 @@ struct MainView: View {
             }
         }
         .sheet(item: $editorTarget) { target in
-            EntryEditorView(editing: target.entry, preselectedGroupID: target.preselectedGroupID)
-                .environmentObject(app)
-                .environmentObject(unlock)
+            Group {
+                if let entry = target.entry {
+                    EntryEditorView(editing: entry, preselectedGroupID: target.preselectedGroupID)
+                } else {
+                    EntryCreationView(preselectedGroupID: target.preselectedGroupID)
+                }
+            }.environmentObject(app).environmentObject(unlock)
         }
         .alert("移动还是复制条目？", isPresented: Binding(
             get: { dragConfirmation != nil },
