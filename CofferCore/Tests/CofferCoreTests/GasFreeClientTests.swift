@@ -5,6 +5,7 @@ final class GasFreeMockHTTP: HTTPProviding {
     var responses: [String: [String: Any]] = [:]
     var requests: [(String, [String: Any], [String: String])] = []
     var failure: Error?
+    var onPost: ((String, [String: Any]) -> [String: Any]?)?
     func get(_ path: String, headers: [String: String]) async throws -> Data {
         requests.append((path, [:], headers))
         if let failure { throw failure }
@@ -13,7 +14,7 @@ final class GasFreeMockHTTP: HTTPProviding {
     func post(_ path: String, body: [String: Any], headers: [String: String]) async throws -> Data {
         requests.append((path, body, headers))
         if let failure { throw failure }
-        return try JSONSerialization.data(withJSONObject: responses[path] ?? [:])
+        return try JSONSerialization.data(withJSONObject: onPost?(path, body) ?? responses[path] ?? [:])
     }
 }
 

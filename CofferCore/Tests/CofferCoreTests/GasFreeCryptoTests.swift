@@ -20,6 +20,9 @@ final class GasFreeCryptoTests: XCTestCase {
             chainID: 3448148188, controller: "THQGuFzL87ZqhxkgqYEryRAd7gqFqL5rdc")
         XCTAssertEqual(GasFreeCrypto.hex(hash), "b1226f3a0b690b04e2c39fac3b58352ed68943a12a54b58035045215aaf0b9b1")
         XCTAssertNotEqual(hash, try GasFreeCrypto.hash(permit))
+        // Read-only mainnet Controller getMessageHashForTransfer query, 2026-10-11.
+        XCTAssertEqual(try GasFreeCrypto.hex(GasFreeCrypto.hash(permit)),
+                       "4578bb8cbd81e816b9db5d5d6e98d0c7a2c13339380ff3c4476af5c4fb5db189")
     }
 
     func testSignatureRecoveryByteAndOwnerValidation() throws {
