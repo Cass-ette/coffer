@@ -5,11 +5,14 @@ let package = Package(
     name: "CofferCore",
     platforms: [.macOS(.v26)],
     products: [.library(name: "CofferCore", targets: ["CofferCore"])],
-    dependencies: [.package(path: "../Vendor/TronKit")],
+    dependencies: [
+        .package(path: "../Vendor/TronKit"),
+        .package(url: "https://github.com/horizontalsystems/HsCryptoKit.Swift.git", .upToNextMajor(from: "1.2.1")),
+    ],
     targets: [
         .target(
             name: "CofferCore",
-            dependencies: ["TronKit"],
+            dependencies: ["TronKit", .product(name: "HsCryptoKit", package: "HsCryptoKit.Swift")],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(
