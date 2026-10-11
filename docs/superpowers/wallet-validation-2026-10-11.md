@@ -106,6 +106,10 @@ TronKit 平台与验证接口差异见 [README-COFFER.md](../../Vendor/TronKit/R
 
 ## 收尾状态
 
+用户决定暂缓项目，将后续实测记录于 [issue #1](https://github.com/Cass-ette/coffer/issues/1)。三种真实转出均未完成，不继续代用户付款或进行恢复演练。重启开发时按 issue 中的顺序恢复本地分支、重跑构建，再在用户愿意配合时逐项验收。
+
+分组图标扩展为 72 个，分类搜索并支持已有分组更换；系统图标可用性检查 72/72、App 构建及 Core 169/169 回归通过。图标改动未进行用户界面手测，已纳入同一 issue；未自动关闭用户当前运行的 App。
+
 新增官方 GasFree 独立钱包（用户明确选择）：设置独立 API Key/Secret 验证与本机钥匙串保存，钱包详情/普通转账页可进入独立余额、收款二维码、费用确认与认证转出。首次激活费、转账服务费、最多总扣款分别显示；按实时冻结金额限制可用余额，费用或 nonce 变化拒绝签名。
 
 地址与 TIP-712 使用官方 SDK 黄金向量；另只读查询主网 Controller 的 `getMessageHashForTransfer`，所得主网哈希与本地一致。主网固化节点 `nonces(address)` 接口只读核查通过。支付记录先落盘再提交，CAS 防止多窗口重复付款；不保留可执行签名。链上成功须核对固定 Controller calldata、签名摘要、带 provider/nonce 的 GasFreeTransfer 事件、USDT Transfer 与全部扣款。提交响应丢失可用 traceId 恢复；固化链证明过期且 nonce 未用时可解除保护，未知或 nonce 已用继续阻止新付款。

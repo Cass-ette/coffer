@@ -7,6 +7,9 @@
 
 ## 1. 当前状态（2026-10-11）
 
+- **项目暂缓**：用户要求把未完成的转出验收留到以后重启项目；继续入口为 [GitHub issue #1](https://github.com/Cass-ette/coffer/issues/1)。直接 TRX、TronSave 租能量、GasFree 三种真实转出均未完成手测，当前不继续主网付款或恢复演练。
+- 本轮最后功能提交 `45a87fa`：分组图标从 12 个扩充至 72 个，分类搜索、中文提示、已有分组右键更换；72 个系统图标可用性检查、App 构建及 169 项回归通过。功能代码仍保存在本机 `feature/wallet`，尚有本地提交未推送；不要只拉远端/main 后误判为代码缺失。
+
 - 仓库：`~/Projects/coffer`，**工作分支 `feature/wallet`**（从 main 拉出，后续任务都在这个分支提交）
 - CofferCore 当前回归：**169/169 绿**（`cd CofferCore && swift test`，原 68 项保留）
 - 已完成代码：
