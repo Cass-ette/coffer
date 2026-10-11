@@ -18,6 +18,7 @@
 - 不改 vault 格式、不触碰正式 DEK 或冷备份；不自动支付、广播、搬资金。
 - 服务凭证申请可能需要审核。没有凭证时明确未启用，不把无法发送的地址作为建议充值入口。
 - 官方接口没有按 requestId 查 traceId 的文档。响应丢失时保留 requestId 供服务商排查，不把 requestId 当成 traceId，不因本机超时/服务端错误自动解除付款保护。
+- 已核对主网代理实现 ABI：`permitTransfer(address,address,address,uint256,uint256,uint256,uint256,uint256,bytes)`、`nonces(address)` 与 `GasFreeTransfer` 事件。固化链超过授权到期时间 60 秒且 nonce 未消耗，才允许无 traceId 恢复；否则继续保留待确认。成功回执校验完整 calldata、签名摘要、事件中的服务商和 nonce，以及 USDT 全部扣款。
 
 ## 依据
 
@@ -27,3 +28,5 @@
 - https://github.com/gasfreeio/gasfree-sdk-swift （算法核对；未引入其 iOS 依赖栈）
 
 主网 API 为 `https://open.gasfree.io/tron`，HMAC 鉴权路径包含 `/tron`。密钥不内置在分发客户端。
+
+2026-10-11 代码已实现；正式 GasFree 凭证配置、服务报价及小额主网手测尚待用户完成。开发仅调用公开只读接口与使用测试凭证的 mock，没有发起真实授权或付款。

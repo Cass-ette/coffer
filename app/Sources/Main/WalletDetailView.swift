@@ -13,6 +13,7 @@ struct WalletDetailSection: View {
     let address: String
     let secretKind: WalletPayload.SecretKind
     @EnvironmentObject private var unlock: UnlockService
+    @Environment(\.openSettings) private var openSettings
     @ObservedObject private var settings = AppSettings.shared
     @State private var cached: CachedTronBalances?
     @State private var loading = false
@@ -21,6 +22,7 @@ struct WalletDetailSection: View {
     @State private var showingReceive = false
     @State private var showingSecret = false
     @State private var showingTransfer = false
+    @State private var showingGasFree = false
     @State private var revealedSecret: String?
 
     var body: some View {
@@ -29,6 +31,13 @@ struct WalletDetailSection: View {
                 Label("Tron 主网 · USDT", systemImage: "network").font(.headline)
                 Spacer()
                 if loading { ProgressView().controlSize(.small) }
+            }
+            if settings.trongridApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                HStack {
+                    Text("当前使用匿名查询额度，易触发限流。")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Button("配置 API key") { openSettings() }.buttonStyle(.link)
+                }
             }
             if let cached {
                 Text("\(TronGridClient.formatUSDT(cached.balances.usdtSun)) USDT")
@@ -64,6 +73,12 @@ struct WalletDetailSection: View {
                     showingSecret = true
                 }.buttonStyle(.link)
             }
+            Divider()
+            Button("GasFree · 用 USDT 付手续费") {
+                refreshTask?.cancel(); loading = false; showingGasFree = true
+            }
+            Text("独立收款地址与余额，可查看激活费、服务费后选择使用。")
+                .font(.caption).foregroundStyle(.secondary)
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -81,6 +96,7 @@ struct WalletDetailSection: View {
                 showingSecret = false
                 showingReceive = false
                 showingTransfer = false
+                showingGasFree = false
                 refreshTask?.cancel()
             }
         }
@@ -92,6 +108,7 @@ struct WalletDetailSection: View {
         }) {
             TransferSheet(entryID: entryID, address: address, initialBalances: cached?.balances)
         }
+        .sheet(isPresented: $showingGasFree) { GasFreeSheet(entryID: entryID, owner: address) }
         .sheet(isPresented: $showingSecret, onDismiss: { revealedSecret = nil }) {
             if let revealedSecret {
                 VStack(alignment: .leading, spacing: 18) {
@@ -158,8 +175,10 @@ struct WalletDetailSection: View {
     }
 }
 
-private struct WalletReceiveSheet: View {
+struct WalletReceiveSheet: View {
     let address: String
+    var title = "Tron 主网收款"
+    var instruction = "仅接收 Tron 网络的 TRX / TRC-20 USDT。"
     @Environment(\.dismiss) private var dismiss
     private var qrImage: NSImage? {
         let filter = CIFilter.qrCodeGenerator()
@@ -171,7 +190,7 @@ private struct WalletReceiveSheet: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            Text("Tron 主网收款").font(.title2.bold())
+            Text(title).font(.title2.bold())
             if let qrImage {
                 Image(nsImage: qrImage).interpolation(.none).resizable()
                     .frame(width: 220, height: 220)
@@ -179,7 +198,7 @@ private struct WalletReceiveSheet: View {
                     .accessibilityLabel("Tron 收款地址二维码")
             }
             Text(address).font(.system(.body, design: .monospaced)).textSelection(.enabled)
-            Text("仅接收 Tron 网络的 TRX / TRC-20 USDT。")
+            Text(instruction)
                 .font(.caption).foregroundStyle(.secondary)
             HStack {
                 Button("关闭") { dismiss() }.keyboardShortcut(.cancelAction)

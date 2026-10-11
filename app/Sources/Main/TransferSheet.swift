@@ -9,6 +9,7 @@ struct TransferSheet: View {
     @EnvironmentObject private var unlock: UnlockService
     @Environment(\.dismiss) private var dismiss
     @State private var recipient = ""
+    @State private var showingGasFree = false
     @State private var amount = ""
     @State private var balances: TronBalances?
     @State private var balanceError: String?
@@ -80,6 +81,7 @@ struct TransferSheet: View {
         .frame(width: 610, height: 720)
         .interactiveDismissDisabled()
         .onAppear(perform: loadBalances)
+        .sheet(isPresented: $showingGasFree) { GasFreeSheet(entryID: entryID, owner: address) }
         .onDisappear { operation?.cancel(); balanceTask?.cancel() }
         .onChange(of: unlock.isUnlocked) { _, unlocked in
             if !unlocked { operation?.cancel(); balanceTask?.cancel(); dismiss() }
@@ -99,6 +101,9 @@ struct TransferSheet: View {
     private var inputForm: some View {
         VStack(alignment: .leading, spacing: 16) {
             balanceView
+            Button("查看 GasFree 独立钱包（USDT 付手续费）") {
+                balanceTask?.cancel(); showingGasFree = true
+            }.buttonStyle(.link).disabled(isQuoting || checking)
             if let storageError {
                 Text(storageError).foregroundStyle(.red)
                 Button("重新读取转账记录") { loadJournal() }

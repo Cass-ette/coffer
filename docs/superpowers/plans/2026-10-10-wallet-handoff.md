@@ -8,7 +8,7 @@
 ## 1. 当前状态（2026-10-11）
 
 - 仓库：`~/Projects/coffer`，**工作分支 `feature/wallet`**（从 main 拉出，后续任务都在这个分支提交）
-- CofferCore 当前回归：**145/145 绿**（`cd CofferCore && swift test`，原 68 项保留）
+- CofferCore 当前回归：**165/165 绿**（`cd CofferCore && swift test`，原 68 项保留）
 - 已完成代码：
   - **T0** 修测试套件（`d84c3f4`）：groupIDs/isHidden 签名演进没同步测试导致编译失败，已修
   - **T1** WalletPayload 数据模型（`d17205e`）：EntryType.wallet + EntryPayload.wallet + WalletPayload struct + SearchIndex 只搜地址不搜 secret
@@ -27,6 +27,8 @@
 - 再次报价只显示直接付费，因 TronSave 租金小数 SUN 向下取整，旧校验向上取整导致误拒绝有效报价。已按主网只读样本修复并补两项回归，145 项通过；新版 UI 双方案报价待手测，仍未真实付款或广播。
 
 ## 2. 剩余任务（全部在计划文档里有完整代码）
+
+用户追加官方 GasFree 独立钱包，代码、165 项回归及 App/CLI 构建已完成，见 [GasFree 计划](2026-10-11-wallet-gasfree.md)。凭证配置、实时服务报价与主网转出仍需用户在 App 手测；不自动转移普通钱包资金。TronGrid 设置已有 key 申请步骤、验证按钮和匿名额度提示。
 
 | # | 任务 | 一句话 |
 |---|------|--------|

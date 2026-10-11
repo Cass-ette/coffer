@@ -72,6 +72,7 @@ struct SettingsView: View {
                     Text("15 分钟").tag(900)
                 }
             }
+            GasFreeSettingsSection()
             Section("数据") {
                 Button("从备份恢复…") { confirmRestore = true }
                     .disabled(!unlock.isUnlocked)
