@@ -108,6 +108,16 @@ final class TronTransferServiceTests: XCTestCase {
         } catch { }
     }
 
+    func testPaymentRecheckRequestsFreshPublicFeeParameters() async throws {
+        let mock = MockHTTP()
+        stubBalances(mock)
+        stubFee(mock)
+        _ = try await TronTransferService(http: mock).quote(from: Self.address, to: Self.address,
+                                                          usdtSun: 1, refreshFeeParameters: true)
+        let parameters = try XCTUnwrap(mock.posted.first { $0.path == "/wallet/getchainparameters" })
+        XCTAssertEqual(parameters.headers["Cache-Control"], "no-cache")
+    }
+
     func testDelegatedEnergyReducesOnlyTheTRXBurnNotTheExecutionBudget() async throws {
         let mock = MockHTTP()
         stubFee(mock)

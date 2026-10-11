@@ -125,19 +125,21 @@ public final class TronTransferService {
     }
 
     public func quote(from: String, to: String, usdtSun: Int64,
-                      requireFeeBalance: Bool = true) async throws -> TronTransferQuote {
+                      requireFeeBalance: Bool = true, refreshFeeParameters: Bool = false) async throws -> TronTransferQuote {
         try Self.validateInputs(from: from, to: to, amount: usdtSun)
         let balances = try await TronGridClient(http: http, apiKey: headers["TRON-PRO-API-KEY"] ?? "")
             .balances(address: from)
         guard balances.usdtSun >= usdtSun else { throw TransferValidationError.insufficientUSDT }
-        let fee = try await estimateFee(from: from, to: to, usdtSun: usdtSun)
+        let fee = try await estimateFee(from: from, to: to, usdtSun: usdtSun,
+                                       refreshFeeParameters: refreshFeeParameters)
         guard !requireFeeBalance || balances.trxBalance >= fee.feeSun else {
             throw TransferValidationError.insufficientTRXForFee(neededSun: fee.feeSun, haveSun: balances.trxBalance)
         }
         return TronTransferQuote(balances: balances, fee: fee)
     }
 
-    public func estimateFee(from: String, to: String, usdtSun: Int64) async throws -> TronFee {
+    public func estimateFee(from: String, to: String, usdtSun: Int64,
+                            refreshFeeParameters: Bool = false) async throws -> TronFee {
         try Self.validateInputs(from: from, to: to, amount: usdtSun)
         let simulation = try await http.post("/wallet/triggerconstantcontract", body: [
             "owner_address": Self.hex41(from)!, "contract_address": Self.usdtContractHex,
@@ -150,7 +152,9 @@ public final class TronTransferService {
             throw TronGridError.badResponse
         }
 
-        let paramData = try await http.post("/wallet/getchainparameters", body: [:], headers: headers)
+        var parameterHeaders = headers
+        if refreshFeeParameters { parameterHeaders["Cache-Control"] = "no-cache" }
+        let paramData = try await http.post("/wallet/getchainparameters", body: [:], headers: parameterHeaders)
         let params = try Self.jsonObject(paramData)
         guard let rows = params["chainParameter"] as? [[String: Any]],
               let energyPrice = rows.first(where: { $0["key"] as? String == "getEnergyFee" })

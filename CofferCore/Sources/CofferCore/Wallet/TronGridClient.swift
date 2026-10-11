@@ -9,9 +9,18 @@ public protocol HTTPProviding {
 public final class URLSessionHTTP: HTTPProviding {
     private let base: URL
     private let session: URLSession
+    private let coordinator: TronGridRequestCoordinator
     public init(base: URL = URL(string: "https://api.trongrid.io")!, session: URLSession = .shared) {
         self.base = base
         self.session = session
+        self.coordinator = .shared
+    }
+
+    init(base: URL = URL(string: "https://api.trongrid.io")!, session: URLSession,
+         coordinator: TronGridRequestCoordinator) {
+        self.base = base
+        self.session = session
+        self.coordinator = coordinator
     }
 
     public func post(_ path: String, body: [String: Any], headers: [String: String]) async throws -> Data {
@@ -32,11 +41,52 @@ public final class URLSessionHTTP: HTTPProviding {
     }
 
     private func run(_ request: URLRequest) async throws -> Data {
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw TronGridError.http((response as? HTTPURLResponse)?.statusCode ?? -1)
+        try Task.checkCancellation()
+        let isTronGrid = request.url?.host?.lowercased() == "api.trongrid.io"
+        let authenticated = !(request.value(forHTTPHeaderField: "TRON-PRO-API-KEY") ?? "").isEmpty
+        let cacheParameters = isTronGrid && Self.isPublicParameterQuery(request)
+        let forceRefresh = (request.value(forHTTPHeaderField: "Cache-Control") ?? "")
+            .lowercased().split(separator: ",").contains { $0.trimmingCharacters(in: .whitespaces) == "no-cache" }
+        if cacheParameters && !forceRefresh, let cached = await coordinator.cachedChainParameters() {
+            try Task.checkCancellation()
+            return cached
         }
-        return data
+        var retried = false
+        while true {
+            if isTronGrid { try await coordinator.wait(authenticated: authenticated) }
+            try Task.checkCancellation()
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse else { throw TronGridError.badResponse }
+            if isTronGrid && http.statusCode == 429 {
+                let cooldown = await coordinator.rateLimited(
+                    retryAfter: http.value(forHTTPHeaderField: "Retry-After"), alreadyRetried: retried)
+                if Self.canRetry(request), cooldown.retry {
+                    retried = true
+                    continue
+                }
+                throw TronGridError.rateLimited(retryAfterSeconds: cooldown.seconds)
+            }
+            guard (200..<300).contains(http.statusCode) else { throw TronGridError.http(http.statusCode) }
+            if cacheParameters { await coordinator.cacheChainParameters(data) }
+            return data
+        }
+    }
+
+    private static func isPublicParameterQuery(_ request: URLRequest) -> Bool {
+        guard request.httpMethod == "POST", request.url?.path == "/wallet/getchainparameters",
+              request.url?.query == nil, let body = request.httpBody,
+              let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else { return false }
+        return object.isEmpty
+    }
+
+    private static func canRetry(_ request: URLRequest) -> Bool {
+        let path = request.url?.path ?? ""
+        if request.httpMethod == "GET" { return path.hasPrefix("/v1/accounts/") }
+        guard request.httpMethod == "POST" else { return false }
+        // Explicitly limited to queries and unsigned construction. Never retry broadcast or rental orders.
+        return ["/wallet/triggerconstantcontract", "/wallet/getchainparameters", "/wallet/getaccountresource",
+                "/wallet/gettransactioninfobyid", "/wallet/gettransactionbyid", "/walletsolidity/gettransactionbyid",
+                "/walletsolidity/getnowblock", "/wallet/createtransaction", "/wallet/triggersmartcontract"].contains(path)
     }
 }
 
@@ -64,8 +114,10 @@ public struct CachedTronBalances: Equatable, Sendable {
 
 public enum TronGridError: LocalizedError, Equatable {
     case http(Int), badResponse, invalidAddress
+    case rateLimited(retryAfterSeconds: Int)
     public var errorDescription: String? {
         switch self {
+        case .rateLimited(let seconds): return "TronGrid 暂时限流，已暂停请求；请约 \(seconds) 秒后重试。也可在“设置 → 钱包”填写自己的 API key。"
         case .http(429): return "TronGrid 请求过于频繁，请稍后重试或在设置中填写 API key"
         case .http(let code): return "TronGrid 请求失败（HTTP \(code)），请稍后重试"
         case .badResponse: return "TronGrid 返回的数据无效，请稍后重试"
@@ -81,7 +133,8 @@ public final class TronGridClient {
     private let headers: [String: String]
     public init(http: HTTPProviding, apiKey: String = "") {
         self.http = http
-        self.headers = apiKey.isEmpty ? [:] : ["TRON-PRO-API-KEY": apiKey]
+        let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.headers = trimmed.isEmpty ? [:] : ["TRON-PRO-API-KEY": trimmed]
     }
 
     public func balances(address: String) async throws -> TronBalances {

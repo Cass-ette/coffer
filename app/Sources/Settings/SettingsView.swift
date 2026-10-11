@@ -46,8 +46,9 @@ struct SettingsView: View {
             securitySection
             Section("钱包") {
                 SecureField("TronGrid API key（选填）", text: $appSettings.trongridApiKey)
-                Text("TronGrid 免费档不填也能使用，限流时可添加自己的 API key。")
+                Text("匿名请求额度较低。可在 TronGrid 创建自己的 API key，填在此处提高查询稳定性。")
                     .font(.caption).foregroundStyle(.secondary)
+                Link("打开 TronGrid", destination: URL(string: "https://www.trongrid.io/")!)
                 Picker("余额缓存", selection: $appSettings.balanceCacheSeconds) {
                     Text("1 分钟").tag(60)
                     Text("5 分钟").tag(300)

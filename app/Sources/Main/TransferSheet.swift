@@ -126,13 +126,14 @@ struct TransferSheet: View {
                 .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
             TextField("对方的 Tron 地址（T 开头）", text: $recipient)
                 .textFieldStyle(.roundedBorder).font(.system(.body, design: .monospaced))
+                .disabled(isQuoting)
             if !target.isEmpty {
                 Label(validAddress ? "地址校验通过，请核对收款人" : "地址无效：请填写 T 开头的 Tron 地址",
                       systemImage: validAddress ? "checkmark.circle.fill" : "exclamationmark.circle")
                     .font(.caption).foregroundStyle(validAddress ? .green : .red)
             }
             HStack {
-                TextField("金额（最多 6 位小数）", text: $amount).textFieldStyle(.roundedBorder)
+                TextField("金额（最多 6 位小数）", text: $amount).textFieldStyle(.roundedBorder).disabled(isQuoting)
                 Text("USDT")
             }
             if !amount.isEmpty && !validAmount {
@@ -141,6 +142,10 @@ struct TransferSheet: View {
             }
             Text("主网转账不可撤销。请核对网络、收款人及费用。")
                 .font(.caption).foregroundStyle(.secondary)
+            if isQuoting {
+                Text("正在查询报价；遇到临时限流会等待后重试一次，可取消。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             HStack {
                 Button("取消") { navigateBack(editing: false) }.keyboardShortcut(.cancelAction)
                 Spacer()
@@ -150,7 +155,7 @@ struct TransferSheet: View {
                     .disabled(!validAddress || !validAmount || isQuoting || checking
                               || journal.blocksNewPayment || storageError != nil)
             }
-        }.disabled(isQuoting)
+        }
     }
 
     private var balanceView: some View {
@@ -345,6 +350,8 @@ struct TransferSheet: View {
     private func loadBalances() {
         balances = initialBalances
         loadJournal()
+        // The detail screen already queried this balance. The quote always refreshes it before confirmation.
+        guard initialBalances == nil else { return }
         let apiKey = AppSettings.shared.trongridApiKey
         balanceTask = Task { @MainActor in
             do {
@@ -418,7 +425,8 @@ struct TransferSheet: View {
                 if journal.transfer?.receipt != nil { try saveJournal(TronTransferJournal()) }
                 if mode == .rental, let rental = draft.rental {
                     progressText = "正在核对报价并购买本次能量…"
-                    let before = try await service().quote(from: address, to: draft.to, usdtSun: draft.amountSun, requireFeeBalance: false)
+                    let before = try await service().quote(from: address, to: draft.to, usdtSun: draft.amountSun,
+                                                           requireFeeBalance: false, refreshFeeParameters: true)
                     let verified = try TronRentalPlan(quote: rental.quote, directFee: before.fee)
                     guard rental.quote.isFresh(), before.fee.energyBurned == rental.quote.energy,
                           verified.totalSun <= rental.totalSun, verified.maximumTotalSun <= rental.maximumTotalSun,
@@ -447,7 +455,8 @@ struct TransferSheet: View {
                     guard ready else { stage = .rentalPending; return }
                 }
                 progressText = "正在复核费用并转出 USDT…"
-                let latest = try await service().quote(from: address, to: draft.to, usdtSun: draft.amountSun, requireFeeBalance: false)
+                let latest = try await service().quote(from: address, to: draft.to, usdtSun: draft.amountSun,
+                                                      requireFeeBalance: false, refreshFeeParameters: true)
                 let agreedExpected = mode == .rental ? draft.rental?.transferFeeSun ?? 0 : draft.quote.fee.feeSun
                 let agreedMaximum = mode == .rental
                     ? (draft.rental!.maximumTotalSun - draft.rental!.quote.rentSun - draft.rental!.paymentFeeSun)

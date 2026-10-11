@@ -48,7 +48,11 @@ struct WalletDetailSection: View {
             HStack {
                 Button("刷新", systemImage: "arrow.clockwise") { refresh() }.disabled(loading)
                 Button("收款", systemImage: "qrcode") { showingReceive = true }
-                Button("转账", systemImage: "arrow.up.right") { showingTransfer = true }
+                Button("转账", systemImage: "arrow.up.right") {
+                    refreshTask?.cancel()
+                    loading = false
+                    showingTransfer = true
+                }
                     .disabled(secretKind == .watchOnly)
             }
             if secretKind == .watchOnly {
