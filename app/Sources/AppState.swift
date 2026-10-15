@@ -12,6 +12,8 @@ final class AppState: ObservableObject {
     }
 
     @Published var phase: Phase
+    // Consume once at launch; an explicit or automatic lock must stay locked.
+    var shouldPromptForUnlockOnLaunch = true
     let unlock: UnlockService
     let settings = AppSettings.shared
     @Published private(set) var hotkeyRegistered = false
@@ -66,6 +68,7 @@ final class AppState: ObservableObject {
     }
 
     func didLock() {
+        shouldPromptForUnlockOnLaunch = false
         unlock.lock()
         phase = .locked
     }

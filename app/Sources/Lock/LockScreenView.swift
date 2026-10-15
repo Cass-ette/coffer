@@ -11,11 +11,13 @@ struct LockScreenView: View {
 
     @EnvironmentObject var app: AppState
     @EnvironmentObject var unlock: UnlockService
+    @Environment(\.scenePhase) private var scenePhase
     @State private var mode: UnlockMode = .biometrics
     @State private var password = ""
     @State private var errorMessage: String?
     @State private var showError = false
     @State private var biometricsAvailable = false
+    @State private var isAuthenticating = false
 
     var body: some View {
         VStack(spacing: 24) {
@@ -34,8 +36,13 @@ struct LockScreenView: View {
         }
         .padding()
         .frame(minWidth: 400, minHeight: 300)
-        .task {
+        .disabled(isAuthenticating)
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
             biometricsAvailable = LAContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
+            guard biometricsAvailable, mode == .biometrics,
+                  app.shouldPromptForUnlockOnLaunch else { return }
+            unlockWithBiometrics()
         }
         .alert("Unlock Failed", isPresented: $showError) {
             Button("OK", role: .cancel) {}
@@ -57,6 +64,7 @@ struct LockScreenView: View {
             .controlSize(.large)
 
             Button("Use Master Password") {
+                app.shouldPromptForUnlockOnLaunch = false
                 mode = .password
             }
             .buttonStyle(.plain)
@@ -98,10 +106,13 @@ struct LockScreenView: View {
     }
 
     private func unlockWithBiometrics() {
-        // Call unlock synchronously (like KeyShelf does)
-        // The biometric prompt happens immediately, completion handler processes result
+        guard !isAuthenticating, app.phase == .locked else { return }
+        // Consume before presenting: the system prompt can change scenePhase.
+        app.shouldPromptForUnlockOnLaunch = false
+        isAuthenticating = true
         unlock.unlockWithBiometricsSync { [weak app] result in
             Task { @MainActor in
+                self.isAuthenticating = false
                 switch result {
                 case .unlocked:
                     app?.phase = .unlocked
@@ -118,6 +129,8 @@ struct LockScreenView: View {
     }
 
     private func unlockWithPassword() {
+        guard !isAuthenticating, app.phase == .locked else { return }
+        app.shouldPromptForUnlockOnLaunch = false
         let result = unlock.unlockWithMasterPassword(password)
         switch result {
         case .unlocked:
