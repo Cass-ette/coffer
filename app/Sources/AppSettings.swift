@@ -65,6 +65,7 @@ final class AppSettings: ObservableObject {
 
 enum LaunchAtLogin {
     static func set(_ enabled: Bool) {
+        guard #available(macOS 13, *) else { return }
         // SMAppService 需要打包后的 app；开发裸跑时静默失败属预期
         let service = SMAppService.mainApp
         if enabled {
@@ -73,5 +74,13 @@ enum LaunchAtLogin {
             try? service.unregister()
         }
     }
-    static func isEnabled() -> Bool { SMAppService.mainApp.status == .enabled }
+    static func isEnabled() -> Bool {
+        guard #available(macOS 13, *) else { return false }
+        return SMAppService.mainApp.status == .enabled
+    }
+
+    static var isSupported: Bool {
+        if #available(macOS 13, *) { return true }
+        return false
+    }
 }

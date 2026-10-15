@@ -7,7 +7,6 @@ struct GasFreeSheet: View {
     let owner: String
     @EnvironmentObject private var unlock: UnlockService
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openSettings) private var openSettings
     @State private var snapshot: GasFreeSnapshot?
     @State private var quote: GasFreeQuote?
     @State private var record: GasFreeRecord?
@@ -50,7 +49,7 @@ struct GasFreeSheet: View {
                     if !configured {
                         Text("尚未启用。先到设置申请、填写并验证 GasFree API Key 和 API Secret，再使用收款与转账。")
                         HStack {
-                            Button("打开设置") { openSettings() }
+                            CofferSettingsButton("打开设置")
                             Button("已配置，重新检查", action: refreshWallet).disabled(busy)
                         }
                         Link("官方说明", destination: URL(string: "https://gasfree.io/")!)
@@ -77,7 +76,7 @@ struct GasFreeSheet: View {
         .interactiveDismissDisabled()
         .onAppear(perform: refreshWallet)
         .onDisappear { operation?.cancel() }
-        .onChange(of: unlock.isUnlocked) { _, unlocked in
+        .onChange(of: unlock.isUnlocked) { unlocked in
             if !unlocked { operation?.cancel(); authenticating = false; showingReceive = false; dismiss() }
         }
         .sheet(isPresented: $showingReceive) {
@@ -104,7 +103,7 @@ struct GasFreeSheet: View {
                 .font(.callout)
             Text("当前服务商：\(account.provider.name)。以上为本次查询报价，转出前会重新核对。")
                 .font(.caption).foregroundStyle(.secondary)
-        }.padding(16).background(.background.secondary, in: RoundedRectangle(cornerRadius: 10))
+        }.padding(16).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
     }
 
     private var inputView: some View {
@@ -123,11 +122,11 @@ struct GasFreeSheet: View {
             Text("核对本次转账").font(.headline)
             Text("从：\(draft.snapshot.address)").font(.system(.caption, design: .monospaced)).textSelection(.enabled)
             Text("到：\(draft.receiver)").font(.system(.body, design: .monospaced)).textSelection(.enabled)
-            LabeledContent("对方收到", value: money(draft.value))
-            LabeledContent("首次激活费", value: money(draft.snapshot.activationFee))
-            LabeledContent("转账服务费", value: money(draft.snapshot.transferFee))
-            LabeledContent("手续费上限", value: money(draft.maxFee))
-            LabeledContent("最多总扣款", value: money(draft.total)).bold()
+            CofferLabeledContent("对方收到", value: money(draft.value))
+            CofferLabeledContent("首次激活费", value: money(draft.snapshot.activationFee))
+            CofferLabeledContent("转账服务费", value: money(draft.snapshot.transferFee))
+            CofferLabeledContent("手续费上限", value: money(draft.maxFee))
+            CofferLabeledContent("最多总扣款", value: money(draft.total)).font(.body.bold())
             Text("费用另加，不从对方收款金额中扣除。报价有效 90 秒；费用或账户状态变化时需重新确认。实际支出以固化链回执为准。")
                 .font(.caption).foregroundStyle(.secondary)
             HStack {
@@ -136,7 +135,7 @@ struct GasFreeSheet: View {
                 Button("认证并转账") { authenticating = true }
                     .buttonStyle(.borderedProminent).disabled(!canSign || pending || !storageOK)
             }
-        }.padding(16).background(.background.secondary, in: RoundedRectangle(cornerRadius: 10)).disabled(busy)
+        }.padding(16).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10)).disabled(busy)
     }
 
     private func recordView(_ item: GasFreeRecord) -> some View {
@@ -173,7 +172,7 @@ struct GasFreeSheet: View {
                 Button("查询上一笔转账", action: refreshRecord)
                     .disabled(busy || !configured)
             }
-        }.padding(16).background(.background.secondary, in: RoundedRectangle(cornerRadius: 10))
+        }.padding(16).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
     }
 
     private func store() throws -> GasFreeJournalStore {

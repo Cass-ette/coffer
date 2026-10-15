@@ -44,37 +44,29 @@ struct QuickPanelView: View {
             targetIndex = 0
             focused = true
         }
-        .onChange(of: query) {
+        .onChange(of: query) { _ in
             selectedIndex = 0
             targetIndex = 0
         }
-        .onKeyPress(.downArrow) {
+        .background(CofferPanelKeyHandler(handle: handleKey).frame(width: 0, height: 0))
+        .onReceive(timer) { now = $0 }
+    }
+
+    private func handleKey(_ event: NSEvent) -> Bool {
+        switch event.keyCode {
+        case 125: // Down arrow
             selectedIndex = min(selectedIndex + 1, max(results.count - 1, 0))
             targetIndex = 0
-            return .handled
-        }
-        .onKeyPress(.upArrow) {
+        case 126: // Up arrow
             selectedIndex = max(selectedIndex - 1, 0)
             targetIndex = 0
-            return .handled
+        case 48: cycleTarget() // Tab
+        case 36, 76: // Return / keypad Enter
+            if event.modifierFlags.contains(.command) { openSelectedURL() } else { copyPrimary() }
+        case 53: onClose() // Escape
+        default: return false
         }
-        .onKeyPress(.tab) {
-            cycleTarget()
-            return .handled
-        }
-        .onKeyPress(.return, phases: .down) { press in
-            if press.modifiers.contains(.command) {
-                openSelectedURL()
-            } else {
-                copyPrimary()
-            }
-            return .handled
-        }
-        .onKeyPress(.escape) {
-            onClose()
-            return .handled
-        }
-        .onReceive(timer) { now = $0 }
+        return true
     }
 
     @ViewBuilder
@@ -95,7 +87,7 @@ struct QuickPanelView: View {
                 Text(iselTargetLabel(targets))
                     .font(.caption)
                     .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(.quinary, in: Capsule())
+                    .background(Color.primary.opacity(0.05), in: Capsule())
             }
             if case .totp(let p) = entry.payload {
                 VStack(alignment: .trailing, spacing: 2) {

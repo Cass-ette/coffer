@@ -34,9 +34,9 @@ struct PasswordGeneratorView: View {
                 .font(.system(.title3, design: .monospaced))
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity)
-            LabeledContent("长度 \(Int(length))") {
+            CofferLabeledContent("长度 \(Int(length))") {
                 Slider(value: $length, in: 12...40, step: 1)
-                    .onChange(of: length) { regenerate() }
+                    .onChange(of: length) { _ in regenerate() }
             }
             HStack {
                 Toggle("小写", isOn: $lowers).toggleStyle(.checkbox)
@@ -44,10 +44,10 @@ struct PasswordGeneratorView: View {
                 Toggle("数字", isOn: $digits).toggleStyle(.checkbox)
                 Toggle("符号", isOn: $symbols).toggleStyle(.checkbox)
             }
-            .onChange(of: lowers) { regenerate() }
-            .onChange(of: uppers) { regenerate() }
-            .onChange(of: digits) { regenerate() }
-            .onChange(of: symbols) { regenerate() }
+            .onChange(of: lowers) { _ in regenerate() }
+            .onChange(of: uppers) { _ in regenerate() }
+            .onChange(of: digits) { _ in regenerate() }
+            .onChange(of: symbols) { _ in regenerate() }
             HStack {
                 Button("重新生成") { regenerate() }
                 Spacer()

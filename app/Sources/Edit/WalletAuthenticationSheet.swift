@@ -45,7 +45,7 @@ struct WalletAuthenticationSheet: View {
             context = nil
             password = ""
         }
-        .onChange(of: unlock.isUnlocked) { _, unlocked in
+        .onChange(of: unlock.isUnlocked) { unlocked in
             if !unlocked { cancel() }
         }
     }

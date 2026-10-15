@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "CofferCore",
-    platforms: [.macOS(.v26)],
+    platforms: [.macOS(.v12)],
     products: [.library(name: "CofferCore", targets: ["CofferCore"])],
     dependencies: [
         .package(path: "../Vendor/TronKit"),

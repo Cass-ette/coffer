@@ -90,7 +90,10 @@ GasFree 是由同一钱包密钥控制的独立合约地址，普通地址余额
 
 ## 构建
 
-需要 macOS 26 + Touch ID 机型、Xcode、[xcodegen](https://github.com/yonaskolb/XcodeGen)。
+运行需要 macOS 12 或更新版本，支持 Intel 与 Apple 芯片。Touch ID 可选，没有时使用主密码；启动到前台后自动请求一次指纹，取消后可切换主密码。
+macOS 12 的登录时启动需在系统登录项中手动配置。安装和分发说明见 [安装指南](docs/install-macos.md)。
+
+从源码构建需要支持 Swift 6.2 的 Xcode，以及 [xcodegen](https://github.com/yonaskolb/XcodeGen)；构建机器可运行较新系统，产物最低支持 macOS 12。
 
 ```bash
 git clone https://github.com/Cass-ette/coffer.git

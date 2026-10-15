@@ -58,7 +58,7 @@ struct MainView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
+        CofferSplitView {
             SidebarView(section: $section, dragConfirmation: $dragConfirmation)
         } content: {
             EntryListView(entries: visibleEntries, selection: $selection)
@@ -70,15 +70,15 @@ struct MainView: View {
                                deleteConfirmation: $deleteConfirmation)
                     .id(entry.id)
             } else {
-                ContentUnavailableView("选择一个条目",
+                CofferEmptyState("选择一个条目",
                                        systemImage: "lock.rectangle",
                                        description: Text("在左侧选择，或直接搜索"))
             }
         }
         .navigationTitle("Coffer")
         .searchable(text: $query, placement: .toolbar, prompt: "搜索标题 / 标签 / 地址")
-        .onChange(of: section) { oldValue, newValue in
-            handleSectionChange(from: oldValue, to: newValue)
+        .onChange(of: section) { [section] newValue in
+            handleSectionChange(from: section, to: newValue)
         }
         .toolbar {
             ToolbarItem {
@@ -120,24 +120,33 @@ struct MainView: View {
         } message: { confirmation in
             Text("将「\(confirmation.entryTitle)」拖入新分组")
         }
-        .alert("验证隐藏分组", isPresented: $showingHiddenGroupAuth) {
-            SecureField("密码", text: $hiddenGroupPassword)
-            Button("取消", role: .cancel) {
-                section = .all
-                pendingHiddenGroup = nil
-                hiddenGroupPassword = ""
+        // Alert text fields are unsupported on macOS 12; a sheet works on all versions.
+        .sheet(isPresented: $showingHiddenGroupAuth) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("验证隐藏分组").font(.headline)
+                if let groupID = pendingHiddenGroup,
+                   let group = unlock.document?.groups.first(where: { $0.id == groupID }) {
+                    Text("「\(group.name)」需要验证")
+                }
+                SecureField("密码", text: $hiddenGroupPassword)
+                    .onSubmit(authenticateWithPassword)
+                HStack {
+                    Button("取消") {
+                        showingHiddenGroupAuth = false
+                        section = .all
+                        pendingHiddenGroup = nil
+                        hiddenGroupPassword = ""
+                    }
+                    .keyboardShortcut(.cancelAction)
+                    Spacer()
+                    Button("使用 Touch ID", action: authenticateWithBiometry)
+                    Button("解锁", action: authenticateWithPassword)
+                        .keyboardShortcut(.defaultAction)
+                }
             }
-            Button("使用 Touch ID") {
-                authenticateWithBiometry()
-            }
-            Button("解锁") {
-                authenticateWithPassword()
-            }
-        } message: {
-            if let groupID = pendingHiddenGroup,
-               let group = unlock.document?.groups.first(where: { $0.id == groupID }) {
-                Text("「\(group.name)」需要验证")
-            }
+            .padding(24)
+            .frame(width: 400)
+            .onDisappear { hiddenGroupPassword = "" }
         }
         .alert("删除条目", isPresented: Binding(
             get: { deleteConfirmation != nil },

@@ -16,7 +16,7 @@ struct EntryCreationView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        CofferNavigationStack {
             if let selectedType {
                 EntryEditorView(editing: nil, preselectedGroupID: preselectedGroupID, initialType: selectedType)
             } else {
@@ -48,7 +48,7 @@ struct EntryCreationView: View {
                                                     }
                                                     .frame(maxWidth: .infinity, minHeight: 55, alignment: .topLeading)
                                                     .padding(13)
-                                                    .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10))
+                                                    .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
                                                     .contentShape(RoundedRectangle(cornerRadius: 10))
                                                 }.buttonStyle(.plain)
                                             }
@@ -57,7 +57,7 @@ struct EntryCreationView: View {
                                 }
                             }
                             if !EntryCreationCategory.all.flatMap(\.types).contains(where: matches) {
-                                ContentUnavailableView.search(text: search)
+                                CofferEmptyState.search(text: search)
                             }
                         }
                     }
@@ -73,6 +73,6 @@ struct EntryCreationView: View {
             }
         }
         .frame(width: 650, height: 660)
-        .onChange(of: unlock.isUnlocked) { _, unlocked in if !unlocked { dismiss() } }
+        .onChange(of: unlock.isUnlocked) { unlocked in if !unlocked { dismiss() } }
     }
 }

@@ -13,7 +13,6 @@ struct WalletDetailSection: View {
     let address: String
     let secretKind: WalletPayload.SecretKind
     @EnvironmentObject private var unlock: UnlockService
-    @Environment(\.openSettings) private var openSettings
     @ObservedObject private var settings = AppSettings.shared
     @State private var cached: CachedTronBalances?
     @State private var loading = false
@@ -36,7 +35,7 @@ struct WalletDetailSection: View {
                 HStack {
                     Text("当前使用匿名查询额度，易触发限流。")
                         .font(.caption).foregroundStyle(.secondary)
-                    Button("配置 API key") { openSettings() }.buttonStyle(.link)
+                    CofferSettingsButton("配置 API key").buttonStyle(.link)
                 }
             }
             if let cached {
@@ -82,7 +81,7 @@ struct WalletDetailSection: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
         .onAppear(perform: loadCachedBalance)
         .onDisappear {
             refreshTask?.cancel()
@@ -90,7 +89,7 @@ struct WalletDetailSection: View {
             revealedSecret = nil
             showingSecret = false
         }
-        .onChange(of: unlock.isUnlocked) { _, unlocked in
+        .onChange(of: unlock.isUnlocked) { unlocked in
             if !unlocked {
                 revealedSecret = nil
                 showingSecret = false

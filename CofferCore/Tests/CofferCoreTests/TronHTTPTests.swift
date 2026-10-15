@@ -117,7 +117,7 @@ final class TronHTTPTests: XCTestCase {
         let task = Task { try await http.post("/wallet/getaccountresource", body: [:], headers: [:]) }
         for _ in 0..<100 {
             if !StubProtocol.recorded.0.isEmpty { break }
-            try await Task.sleep(for: .milliseconds(2))
+            try await Task.sleep(nanoseconds: 2_000_000)
         }
         task.cancel()
         do { _ = try await task.value; XCTFail("Cancelled query must stop") }
@@ -167,7 +167,7 @@ final class TronHTTPTests: XCTestCase {
         _ = try await http.post("/wallet/getchainparameters", body: [:], headers: [:])
         let fresh = try await http.post("/wallet/getchainparameters", body: [:], headers: ["Cache-Control": "no-cache"])
         XCTAssertEqual(fresh, changed)
-        try await Task.sleep(for: .milliseconds(35))
+        try await Task.sleep(nanoseconds: 35_000_000)
         let expired = try await http.post("/wallet/getchainparameters", body: [:], headers: [:])
         XCTAssertEqual(expired, first)
         XCTAssertEqual(StubProtocol.recorded.0.count, 3)

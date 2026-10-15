@@ -37,7 +37,7 @@ struct HotkeyRecorder: View {
             Text(settings.hotkey.displayText)
                 .font(.system(.body, design: .monospaced))
                 .padding(.horizontal, 9).padding(.vertical, 4)
-                .background(.quinary, in: RoundedRectangle(cornerRadius: 6))
+                .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
             Button(recording ? "按下新组合…" : "修改") { recording = true }
                 .disabled(recording)
             if recording {

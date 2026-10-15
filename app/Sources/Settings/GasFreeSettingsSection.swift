@@ -39,7 +39,7 @@ struct GasFreeSettingsSection: View {
         }
         .disabled(!unlock.isUnlocked)
         .onAppear(perform: loadStatus)
-        .onChange(of: unlock.isUnlocked) { _, unlocked in
+        .onChange(of: unlock.isUnlocked) { unlocked in
             operation?.cancel(); busy = false; key = ""; secret = ""; message = nil
             if unlocked { loadStatus() }
         }

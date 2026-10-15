@@ -83,7 +83,7 @@ struct TransferSheet: View {
         .onAppear(perform: loadBalances)
         .sheet(isPresented: $showingGasFree) { GasFreeSheet(entryID: entryID, owner: address) }
         .onDisappear { operation?.cancel(); balanceTask?.cancel() }
-        .onChange(of: unlock.isUnlocked) { _, unlocked in
+        .onChange(of: unlock.isUnlocked) { unlocked in
             if !unlocked { operation?.cancel(); balanceTask?.cancel(); dismiss() }
         }
         .confirmationDialog(returningToInput ? "返回修改转账信息？" : "放弃本次输入？",
@@ -463,7 +463,7 @@ struct TransferSheet: View {
                     progressText = "租赁付款已提交，正在等待付款确认与能量到账…"
                     var ready = false
                     for _ in 0..<10 {
-                        try await Task.sleep(for: .seconds(2))
+                        try await Task.sleep(nanoseconds: 2_000_000_000)
                         if try await resolveRental() { ready = true; break }
                     }
                     guard ready else { stage = .rentalPending; return }
@@ -574,7 +574,7 @@ struct TransferSheet: View {
                 do {
                     try Task.checkCancellation()
                     if try await fetchExecutionReceipt(hash) { statusMessage = nil; return }
-                    try await Task.sleep(for: .seconds(2))
+                    try await Task.sleep(nanoseconds: 2_000_000_000)
                 } catch {
                     guard !Task.isCancelled else { return }
                     statusMessage = "回执查询失败，可点查询实际费用重试：\(error.localizedDescription)"

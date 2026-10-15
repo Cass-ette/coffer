@@ -35,8 +35,13 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section("通用") {
-                Toggle("登录时启动", isOn: $appSettings.launchAtLogin)
-                LabeledContent("全局快捷键") {
+                if LaunchAtLogin.isSupported {
+                    Toggle("登录时启动", isOn: $appSettings.launchAtLogin)
+                } else {
+                    Text("macOS 12 请在系统偏好设置 → 用户与群组 → 登录项中添加 Coffer。")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                CofferLabeledContent("全局快捷键") {
                     HotkeyRecorder(settings: appSettings,
                                    registrationFailed: $registrationFailed)
                 }
@@ -77,7 +82,7 @@ struct SettingsView: View {
                 Button("从备份恢复…") { confirmRestore = true }
                     .disabled(!unlock.isUnlocked)
                 Button("重置保险库…", role: .destructive) { confirmReset = true }
-                LabeledContent("保险库位置") {
+                CofferLabeledContent("保险库位置") {
                     Text(VaultFileStore.defaultDirectory().path)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -85,13 +90,13 @@ struct SettingsView: View {
                 }
             }
         }
-        .formStyle(.grouped)
+        .cofferGroupedForm()
         .navigationTitle("设置")
         .frame(width: 520, height: 560)
         .onAppear { reseedPickers() }
-        .onChange(of: unlock.isUnlocked) { reseedPickers() }
-        .onChange(of: appSettings.hotkey) { registrationFailed = !app.reRegisterHotkey() }
-        .onChange(of: appSettings.trongridApiKey) {
+        .onChange(of: unlock.isUnlocked) { _ in reseedPickers() }
+        .onChange(of: appSettings.hotkey) { _ in registrationFailed = !app.reRegisterHotkey() }
+        .onChange(of: appSettings.trongridApiKey) { _ in
             apiKeyCheck?.cancel(); checkingAPIKey = false; apiKeyCheckResult = nil; apiKeyValid = false
         }
         .onDisappear { apiKeyCheck?.cancel(); checkingAPIKey = false }
@@ -153,8 +158,8 @@ struct SettingsView: View {
             }
         }
         .disabled(!unlock.isUnlocked)
-        .onChange(of: autoLockSeconds) { applySecuritySettings() }
-        .onChange(of: clipboardSeconds) { applySecuritySettings() }
+        .onChange(of: autoLockSeconds) { _ in applySecuritySettings() }
+        .onChange(of: clipboardSeconds) { _ in applySecuritySettings() }
     }
 
     private func reseedPickers() {

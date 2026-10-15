@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "coffer-cli",
-    platforms: [.macOS("26.0")],
+    platforms: [.macOS(.v12)],
     products: [
         .executable(name: "coffer-cli", targets: ["coffer-cli"])
     ],

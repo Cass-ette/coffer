@@ -103,7 +103,7 @@ struct GroupIconPicker: View {
                     if !GroupIconCategory.all.contains(where: { category in
                         category.icons.contains { matches($0, category: category.name) }
                     }) {
-                        ContentUnavailableView.search(text: search)
+                        CofferEmptyState.search(text: search)
                     }
                 }.padding(2)
             }.frame(height: 280)
@@ -135,7 +135,7 @@ struct ChangeGroupIconSheet: View {
                     .disabled(!unlock.isUnlocked)
             }
         }.padding(22).frame(width: 440)
-        .onChange(of: unlock.isUnlocked) { _, unlocked in if !unlocked { dismiss() } }
+        .onChange(of: unlock.isUnlocked) { unlocked in if !unlocked { dismiss() } }
     }
 
     private func save() {

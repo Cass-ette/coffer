@@ -30,13 +30,13 @@ struct EntryListView: View {
                 }
                 .padding(.vertical, 2)
                 .tag(entry.id)
-                .draggable(entry.id.uuidString)
+                .onDrag { NSItemProvider(object: entry.id.uuidString as NSString) }
             }
         }
         .listStyle(.inset)
         .overlay {
             if entries.isEmpty {
-                ContentUnavailableView.search(text: "")
+                CofferEmptyState.search(text: "")
             }
         }
     }

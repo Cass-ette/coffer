@@ -166,8 +166,8 @@ struct EntryEditorView: View {
                 }
                 TextField("标签（逗号分隔）", text: $tagsText)
                 Toggle("收藏", isOn: $isFavorite)
-                TextField("我的权限备注", text: $permissionNote, axis: .vertical)
-                    .lineLimit(2...4)
+                CofferMultilineField("我的权限备注", text: $permissionNote)
+                    .cofferLineLimit(2...4)
             }
 
             typeSpecific
@@ -204,7 +204,7 @@ struct EntryEditorView: View {
                 Text(error).foregroundStyle(.red)
             }
         }
-        .formStyle(.grouped)
+        .cofferGroupedForm()
         .navigationTitle(editing == nil ? "新建\(type.label)" : "编辑\(type.label)")
         .disabled(isReadOnly)
         .frame(minWidth: 520, minHeight: 560)
@@ -249,17 +249,17 @@ struct EntryEditorView: View {
                 }, onCancel: { showWalletSetup = false })
             }
         }
-        .onChange(of: walletMode) {
+        .onChange(of: walletMode) { _ in
             walletGeneratedMnemonic = nil
             walletMnemonicConfirmed = false
             walletImportSecret = ""
             refreshWalletPreview()
         }
-        .onChange(of: walletImportSecret) { refreshWalletPreview() }
-        .onChange(of: walletImportIsPrivateKey) { refreshWalletPreview() }
-        .onChange(of: walletExpectedAddress) { refreshWalletPreview() }
-        .onChange(of: walletAddressOnly) { refreshWalletPreview() }
-        .onChange(of: unlock.isUnlocked) { _, unlocked in
+        .onChange(of: walletImportSecret) { _ in refreshWalletPreview() }
+        .onChange(of: walletImportIsPrivateKey) { _ in refreshWalletPreview() }
+        .onChange(of: walletExpectedAddress) { _ in refreshWalletPreview() }
+        .onChange(of: walletAddressOnly) { _ in refreshWalletPreview() }
+        .onChange(of: unlock.isUnlocked) { unlocked in
             if !unlocked {
                 clearWalletSecrets()
                 clearServerSecrets()
@@ -288,21 +288,21 @@ struct EntryEditorView: View {
                     Button { showGenerator = true } label: { Image(systemName: "wand.and.stars") }
                         .buttonStyle(.borderless)
                 }
-                TextField("地址（一行一个，内网 IP 与域名可并存）", text: $loginURLs, axis: .vertical)
-                    .lineLimit(1...4)
+                CofferMultilineField("地址（一行一个，内网 IP 与域名可并存）", text: $loginURLs)
+                    .cofferLineLimit(1...4)
             }
         case .access:
             Section("访问权限") {
-                TextField("系统地址（一行一个）", text: $accessAddresses, axis: .vertical)
-                    .lineLimit(1...4)
+                CofferMultilineField("系统地址（一行一个）", text: $accessAddresses)
+                    .cofferLineLimit(1...4)
                 Picker("登录方式", selection: $accessLoginMethod) {
                     ForEach(loginMethods, id: \.self) { Text($0) }
                 }
                 Picker("网络位置", selection: $accessNetwork) {
                     ForEach(networks, id: \.self) { Text($0) }
                 }
-                TextField("我的角色/权限说明", text: $accessRole, axis: .vertical)
-                    .lineLimit(2...4)
+                CofferMultilineField("我的角色/权限说明", text: $accessRole)
+                    .cofferLineLimit(2...4)
             }
         case .apiKey:
             Section("API 密钥") {
@@ -315,9 +315,9 @@ struct EntryEditorView: View {
             Section("SSH 密钥") {
                 TextField("主机", text: $sshHost)
                 TextField("用户", text: $sshUser)
-                TextField("私钥", text: $sshKey, axis: .vertical)
+                CofferMultilineField("私钥", text: $sshKey)
                     .font(.system(.body, design: .monospaced))
-                    .lineLimit(3...8)
+                    .cofferLineLimit(3...8)
             }
         case .database:
             Section("数据库") {
@@ -337,11 +337,11 @@ struct EntryEditorView: View {
             serverSection
         case .totp:
             Section("2FA 验证码") {
-                TextField("种子（Base32）或完整 otpauth:// 链接", text: $totpInput, axis: .vertical)
+                CofferMultilineField("种子（Base32）或完整 otpauth:// 链接", text: $totpInput)
                     .font(.system(.body, design: .monospaced))
-                    .lineLimit(1...3)
+                    .cofferLineLimit(1...3)
                 if let preview = totpPreview {
-                    LabeledContent("当前验证码") {
+                    CofferLabeledContent("当前验证码") {
                         Text(preview)
                             .font(.system(.body, design: .monospaced))
                     }
@@ -349,8 +349,8 @@ struct EntryEditorView: View {
             }
         case .secureNote:
             Section("安全笔记") {
-                TextField("正文（纯文本）", text: $noteBody, axis: .vertical)
-                    .lineLimit(6...16)
+                CofferMultilineField("正文（纯文本）", text: $noteBody)
+                    .cofferLineLimit(6...16)
                 ForEach(Array(attachments.enumerated()), id: \.offset) { index, att in
                     HStack {
                         Image(systemName: "paperclip")
@@ -475,7 +475,7 @@ struct EntryEditorView: View {
                 ForEach(networks, id: \.self) { Text($0) }
             }
             if let command = serverPayload.sshCommand {
-                LabeledContent("连接命令") {
+                CofferLabeledContent("连接命令") {
                     Text(command).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
                 }
                 Text("仅复制连接命令。密码由终端提示输入；私钥模式需先在本机 SSH 配置好密钥。")
@@ -602,13 +602,13 @@ struct EntryEditorView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 if let address = walletDerivedAddress {
-                    LabeledContent("地址") {
+                    CofferLabeledContent("地址") {
                         Text(address).font(.system(.body, design: .monospaced)).textSelection(.enabled)
                     }
                 }
                 if let walletError { Text(walletError).foregroundStyle(.red) }
             }
-            TextField("钱包备注", text: $walletNote, axis: .vertical).lineLimit(2...4)
+            CofferMultilineField("钱包备注", text: $walletNote).cofferLineLimit(2...4)
         }
     }
 

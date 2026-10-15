@@ -33,7 +33,7 @@ struct WalletMnemonicSheet: View {
                             .font(.system(.title3, design: .monospaced))
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(8)
-                            .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+                            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
                     }
                 }
             }

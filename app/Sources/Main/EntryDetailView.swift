@@ -32,7 +32,7 @@ struct EntryDetailView: View {
                                 Text("#\(tag)")
                                     .font(.caption)
                                     .padding(.horizontal, 8).padding(.vertical, 3)
-                                    .background(.quinary, in: Capsule())
+                                    .background(Color.primary.opacity(0.05), in: Capsule())
                             }
                         }
                     }
@@ -105,7 +105,7 @@ struct EntryDetailView: View {
             Image(systemName: entry.type.symbol)
                 .font(.title2).foregroundStyle(.tint)
                 .frame(width: 36, height: 36)
-                .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+                .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.title).font(.title2.bold())
                 Text(entry.type.label).font(.caption).foregroundStyle(.secondary)
@@ -143,7 +143,7 @@ struct EntryDetailView: View {
                     if pair.offset < rows.count - 1 { Divider() }
                 }
             }
-            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10))
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
         }
     }
 

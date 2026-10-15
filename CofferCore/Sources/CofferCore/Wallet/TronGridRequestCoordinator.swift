@@ -50,7 +50,7 @@ actor TronGridRequestCoordinator {
             }
             let delay = max(nextRequest, cooldownUntil) - now
             if delay > 0 {
-                try await Task.sleep(for: .seconds(delay))
+                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                 // Actor reentrancy: recheck after sleeping, another caller may have acquired the slot.
                 continue
             }

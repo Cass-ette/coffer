@@ -2,7 +2,7 @@ name: Coffer
 options:
   bundleIdPrefix: cc.cassette
   deploymentTarget:
-    macOS: "26.0"
+    macOS: "12.0"
 packages:
   CofferCore:
     path: CofferCore
@@ -30,7 +30,9 @@ targets:
       path: app/Info.plist
       properties:
         CFBundleDisplayName: Coffer
+        CFBundleIconFile: AppIcon
+        CFBundleIconName: AppIcon
         CFBundleShortVersionString: "0.1.0"
         CFBundleVersion: "1"
-        LSMinimumSystemVersion: "26.0"
+        LSMinimumSystemVersion: "12.0"
         LSApplicationCategoryType: public.app-category.utilities

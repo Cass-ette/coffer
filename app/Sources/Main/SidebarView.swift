@@ -34,7 +34,7 @@ struct SidebarView: View {
                 ForEach(normalGroups) { group in
                     Label(group.name, systemImage: group.symbolName)
                         .tag(SidebarSection.group(group.id))
-                        .dropDestination(for: String.self) { items, _ in
+                        .cofferDropStrings { items in
                             handleDrop(items: items, to: group)
                         }
                         .contextMenu {
@@ -61,7 +61,7 @@ struct SidebarView: View {
                     ForEach(hiddenGroups) { group in
                         Label(group.name, systemImage: group.symbolName)
                             .tag(SidebarSection.group(group.id))
-                            .dropDestination(for: String.self) { items, _ in
+                            .cofferDropStrings { items in
                                 handleDrop(items: items, to: group)
                             }
                             .contextMenu {
@@ -92,7 +92,7 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
-        .navigationSplitViewColumnWidth(min: 200, ideal: 240)
+        .cofferSidebarWidth(min: 200, ideal: 240)
         .sheet(isPresented: $showingAddGroup) {
             AddGroupSheet(
                 groupName: $newGroupName,
@@ -108,7 +108,7 @@ struct SidebarView: View {
         .sheet(item: $changingGroupIcon) { group in
             ChangeGroupIconSheet(group: group)
         }
-        .onChange(of: unlock.isUnlocked) { _, unlocked in
+        .onChange(of: unlock.isUnlocked) { unlocked in
             if !unlocked {
                 showingAddGroup = false
                 changingGroupIcon = nil
