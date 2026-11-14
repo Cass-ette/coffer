@@ -259,6 +259,45 @@ final class TronTransferServiceTests: XCTestCase {
         XCTAssertEqual(broadcast.body["txID"] as? String, receipt.txHash)
     }
 
+    func testDirectTransferAcceptsSigningKeySlicesAndPreservesSignature() async throws {
+        let derived = try TronWalletService().privateKeyData(fromMnemonic: Self.mnemonic)
+        var signatures: [[String]] = []
+        for padding in [0, 1, 17] {
+            let key = (Data(repeating: 0xab, count: padding) + Data(derived)).suffix(32)
+            XCTAssertEqual(key.startIndex, padding)
+            let mock = MockHTTP()
+            stubBuiltTransaction(mock)
+            mock.stubs["/wallet/broadcasttransaction"] = Data(#"{"result":true}"#.utf8)
+            var keyReads = 0
+            let receipt = try await TronTransferService(http: mock).sendUSDT(
+                from: Self.address, to: Self.address, usdtSun: 1_000_000, feeLimitSun: 30_000_000,
+                signingKey: { keyReads += 1; return key })
+            let broadcast = try XCTUnwrap(mock.posted.last { $0.path == "/wallet/broadcasttransaction" })
+            signatures.append(try XCTUnwrap(broadcast.body["signature"] as? [String]))
+            XCTAssertEqual(broadcast.body["txID"] as? String, receipt.txHash)
+            XCTAssertEqual(keyReads, 1)
+            XCTAssertEqual(key, derived, "Cleaning the local key must preserve the provider's Data value")
+        }
+        XCTAssertEqual(signatures[0].first?.count, 130)
+        XCTAssertTrue(signatures.allSatisfy { $0 == signatures[0] })
+    }
+
+    func testInvalidSigningKeySliceThrowsBeforeBroadcast() async throws {
+        let mock = MockHTTP()
+        stubBuiltTransaction(mock)
+        let invalidKey = Data(repeating: 0, count: 49).suffix(32)
+        XCTAssertGreaterThan(invalidKey.startIndex, 0)
+        do {
+            _ = try await TronTransferService(http: mock).sendUSDT(
+                from: Self.address, to: Self.address, usdtSun: 1_000_000, feeLimitSun: 30_000_000,
+                signingKey: { invalidKey })
+            XCTFail("Invalid sliced keys must throw without trapping during deferred cleanup")
+        } catch {
+            XCTAssertEqual(error as? TronWalletError, .badPrivateKey)
+        }
+        XCTAssertFalse(mock.posted.contains { $0.path == "/wallet/broadcasttransaction" })
+    }
+
     func testFailureToPersistHashStopsBeforeBroadcast() async throws {
         let mock = MockHTTP()
         stubBuiltTransaction(mock)

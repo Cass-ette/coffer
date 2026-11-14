@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "provenance": {"kind": "incident-model", "date": "2026-10-11", "description": "RPC result 为 true，VM 却为 REVERT 且无 Transfer；必须在签名前拒绝。"},
+  "environment": {"vm_revert": true}
+}

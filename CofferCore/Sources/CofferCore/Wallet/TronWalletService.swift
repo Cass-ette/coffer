@@ -20,13 +20,13 @@ public final class TronWalletService {
 
     public func address(fromMnemonic mnemonic: String) throws -> String {
         var key = try privateKeyData(fromMnemonic: mnemonic)
-        defer { key.resetBytes(in: 0..<key.count) }
+        defer { key.resetBytes(in: key.startIndex..<key.endIndex) }
         return try Signer.address(privateKey: key).base58
     }
 
     public func privateKey(fromMnemonic mnemonic: String) throws -> String {
         var key = try privateKeyData(fromMnemonic: mnemonic)
-        defer { key.resetBytes(in: 0..<key.count) }
+        defer { key.resetBytes(in: key.startIndex..<key.endIndex) }
         return key.map { String(format: "%02x", $0) }.joined()
     }
 
@@ -36,7 +36,8 @@ public final class TronWalletService {
         do { try Mnemonic.validate(words: words) }
         catch { throw TronWalletError.badMnemonic }
         guard var seed = Mnemonic.seed(mnemonic: words) else { throw TronWalletError.badMnemonic }
-        defer { seed.resetBytes(in: 0..<seed.count) }
+        defer { seed.resetBytes(in: seed.startIndex..<seed.endIndex) }
+        // HdWalletKit returns a Data slice; its startIndex may be nonzero.
         return try Signer.privateKey(seed: seed)
     }
 
@@ -67,7 +68,7 @@ public final class TronWalletService {
 
     public func address(fromPrivateKey hex: String) throws -> String {
         var key = try privateKeyData(fromPrivateKey: hex)
-        defer { key.resetBytes(in: 0..<key.count) }
+        defer { key.resetBytes(in: key.startIndex..<key.endIndex) }
         return try Signer.address(privateKey: key).base58
     }
 
@@ -77,7 +78,7 @@ public final class TronWalletService {
             return Mnemonic.generate(entropy: entropy)
         }
         var bytes = Data(count: 16)
-        defer { bytes.resetBytes(in: 0..<bytes.count) }
+        defer { bytes.resetBytes(in: bytes.startIndex..<bytes.endIndex) }
         let status = bytes.withUnsafeMutableBytes {
             SecRandomCopyBytes(kSecRandomDefault, 16, $0.baseAddress!)
         }

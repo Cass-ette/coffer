@@ -2,9 +2,9 @@
 
 来源：https://github.com/horizontalsystems/TronKit.swift，版本 1.5.2（MIT；见 LICENSE）。
 
-TronKit 的 Package.swift 增加 `.macOS(.v10_15)` 平台。
+TronKit 的 Package.swift 增加 `.macOS(.v12)` 平台，与 Coffer 及 ObjectMapper 依赖的最低系统要求一致。
 
-HsToolKit.Swift 固化在 `Vendor/HsToolKit.Swift`，TronKit 改为本地路径依赖；HsToolKit 的 Package.swift 同样增加 `.macOS(.v10_15)`。
+HsToolKit.Swift 固化在 `Vendor/HsToolKit.Swift`，TronKit 改为本地路径依赖；HsToolKit 的 Package.swift 同样增加 `.macOS(.v12)`。
 
 HsToolKit 的 `BackgroundModeObserver` 类及 WebSocket 对它的订阅用 `#if canImport(UIKit)` 保护；macOS 不使用 iOS 的后台任务 API。
 

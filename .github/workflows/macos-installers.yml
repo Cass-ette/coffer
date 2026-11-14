@@ -1,0 +1,71 @@
+name: macOS installers
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: macos-installers-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: Test and build DMG
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+          /usr/bin/python3 --version
+          openssl version
+
+      - name: Install XcodeGen
+        run: |
+          if ! command -v xcodegen >/dev/null; then
+            brew install xcodegen
+          fi
+
+      - name: Test and package universal installers
+        run: |
+          mkdir -p .build
+          bash scripts/package-macos.sh 2>&1 | tee .build/package-macos.log
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: Coffer-macOS12-universal
+          path: |
+            .build/distribution/Coffer-macOS12-universal.dmg
+            .build/distribution/Coffer-macOS12-universal.dmg.sha256
+            .build/distribution/Coffer-macOS12-universal.zip
+            .build/distribution/Coffer-macOS12-universal.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build-log
+          path: .build/package-macos.log
+          if-no-files-found: ignore
+          retention-days: 14

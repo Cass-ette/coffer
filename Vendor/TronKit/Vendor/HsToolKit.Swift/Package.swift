@@ -6,7 +6,7 @@ let package = Package(
     name: "HsToolKit",
     platforms: [
         .iOS(.v13),
-        .macOS(.v10_15),
+        .macOS(.v12),
     ],
     products: [
         .library(

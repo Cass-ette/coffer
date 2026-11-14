@@ -76,7 +76,10 @@ final class GasFreeTransferTests: XCTestCase {
                 "amount": body["value"]!, "maxFee": body["maxFee"]!, "nonce": body["nonce"]!,
                 "signature": body["sig"]!, "expiredAt": expiry, "state": "WAITING"])
         }
-        let accepted = try await service.submit(quote, store: store) { Data(repeating: 0, count: 31) + Data([1]) }
+        // A nonzero Data startIndex also occurs with mnemonic-derived signing keys.
+        let key = (Data(repeating: 0, count: 48) + Data([1])).suffix(32)
+        XCTAssertGreaterThan(key.startIndex, 0)
+        let accepted = try await service.submit(quote, store: store) { key }
         XCTAssertEqual(accepted.traceID, trace)
         XCTAssertNotEqual(accepted.requestID, trace)
         XCTAssertEqual(try store.load().records.last, accepted)

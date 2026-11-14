@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "provenance": {"kind": "incident-model", "date": "2026-10-11", "description": "TronGrid 临时 429。这里的限额及 Retry-After 为确定性重建参数，不代表生产额度。"},
+  "environment": {"faults": [{"path": "/wallet/getaccountresource", "attempts": [1], "status": 429, "headers": {"Retry-After": "1"}}]}
+}

@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "provenance": {"kind": "incident-model", "date": "2026-11-14", "description": "助记词派生的非零下标 Data 私钥在租赁签名清理时 SIGTRAP。场景贯通签名、付款、能量到账和 USDT 转出。"},
+  "environment": {"delegation_delay_blocks": 2}
+}

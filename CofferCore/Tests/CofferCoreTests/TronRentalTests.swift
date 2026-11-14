@@ -131,6 +131,41 @@ final class TronRentalTests: XCTestCase {
         XCTAssertFalse(mock.posted.contains { $0.path == "/wallet/broadcasttransaction" })
     }
 
+    func testRentalPaymentAcceptsSigningKeySlicesAndPreservesSignature() async throws {
+        let derived = try TronWalletService().privateKeyData(fromMnemonic: TronTransferServiceTests.mnemonic)
+        var signatures: [[String]] = []
+        for padding in [0, 1, 17] {
+            let key = (Data(repeating: 0xab, count: padding) + Data(derived)).suffix(32)
+            XCTAssertEqual(key.startIndex, padding)
+            let mock = MockHTTP()
+            mock.stubs["/wallet/createtransaction"] = try Self.paymentResponse()
+            let payment = try await TronTransferService(http: mock).signRentalPayment(
+                from: Self.address, amountSun: 4_371_250, now: Self.now, signingKey: { key })
+            let signed = try WalletJSON.object(payment.payload)
+            signatures.append(try XCTUnwrap(signed["signature"] as? [String]))
+            XCTAssertEqual(signed["txID"] as? String, payment.txHash)
+            XCTAssertEqual(mock.posted.map(\.path), ["/wallet/createtransaction"])
+            XCTAssertEqual(key, derived)
+        }
+        XCTAssertEqual(signatures[0].first?.count, 130)
+        XCTAssertTrue(signatures.allSatisfy { $0 == signatures[0] })
+    }
+
+    func testInvalidRentalKeySliceThrowsWithoutSubmittingPayment() async throws {
+        let mock = MockHTTP()
+        mock.stubs["/wallet/createtransaction"] = try Self.paymentResponse()
+        let invalidKey = Data(repeating: 0, count: 49).suffix(32)
+        XCTAssertGreaterThan(invalidKey.startIndex, 0)
+        do {
+            _ = try await TronTransferService(http: mock).signRentalPayment(
+                from: Self.address, amountSun: 4_371_250, now: Self.now, signingKey: { invalidKey })
+            XCTFail("Invalid sliced keys must throw without trapping during deferred cleanup")
+        } catch {
+            XCTAssertEqual(error as? TransferValidationError, .privateKeyMismatch)
+        }
+        XCTAssertEqual(mock.posted.map(\.path), ["/wallet/createtransaction"])
+    }
+
     func testSubmittingPaymentUsesPriceCapAndTimeoutStaysUncertain() async throws {
         let mock = MockHTTP(); stubQuote(mock)
         mock.stubs["/wallet/createtransaction"] = try Self.paymentResponse()
