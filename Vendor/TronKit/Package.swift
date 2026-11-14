@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "TronKit",
     platforms: [
-        .iOS(.v13), .macOS(.v10_15),
+        .iOS(.v13), .macOS(.v12),
     ],
     products: [
         .library(
