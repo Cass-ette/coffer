@@ -2,6 +2,38 @@ import SwiftUI
 import CoreImage.CIFilterBuiltins
 import CofferCore
 
+/// Keep short wallet sheets compact while allowing long quotes and recovery
+/// details to scroll within the available screen space.
+struct WalletSheetLayout<Content: View>: View {
+    @ViewBuilder var content: Content
+    @State private var contentHeight: CGFloat = 430
+
+    private var maximumHeight: CGFloat {
+        min(600, (NSScreen.main?.visibleFrame.height ?? 800) * 0.8)
+    }
+
+    var body: some View {
+        ScrollView {
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(GeometryReader { geometry in
+                    Color.clear.preference(key: WalletSheetHeightKey.self, value: geometry.size.height)
+                })
+        }
+        .frame(width: 520, height: min(contentHeight, maximumHeight))
+        .onPreferenceChange(WalletSheetHeightKey.self) { height in
+            if height > 0 { contentHeight = height }
+        }
+    }
+}
+
+private struct WalletSheetHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat { 0 }
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 @MainActor
 private final class WalletBalanceCache {
     static let shared = WalletBalanceCache()

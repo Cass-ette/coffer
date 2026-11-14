@@ -49,7 +49,7 @@ struct TransferSheet: View {
     private var isQuoting: Bool { if case .quoting = stage { return true }; return false }
 
     var body: some View {
-        ScrollView {
+        WalletSheetLayout {
             VStack(alignment: .leading, spacing: 20) {
                 Text("转出 USDT · Tron 主网").font(.title2.bold())
                 switch stage {
@@ -78,7 +78,6 @@ struct TransferSheet: View {
                 }
             }.padding(28)
         }
-        .frame(width: 610, height: 720)
         .interactiveDismissDisabled()
         .onAppear(perform: loadBalances)
         .sheet(isPresented: $showingGasFree) { GasFreeSheet(entryID: entryID, owner: address) }

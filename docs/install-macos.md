@@ -11,6 +11,14 @@ macOS 12 的开机启动需在“系统偏好设置 → 用户与群组 → 登�
 
 已有重要数据时，先完全退出 Coffer，再备份 `~/Library/Application Support/cc.cassette.coffer/` 整个目录，其中保险库文件保持加密。在 Finder 按 Command + Shift + G 可打开这个路径。升级仅替换 `/Applications/Coffer.app`，数据目录与钥匙串独立保存；本次转账崩溃修复没有改动保险库格式。若升级后意外显示“创建保险库”，先退出并核对原数据目录，避免误建新库。
 
+## 恢复备份
+
+设置里的“从本机自动备份恢复”按 `vault.bak1` → `vault.bak2` → `vault.bak3` 的顺序，回滚到最近一份可读取的自动备份。它不是你在 Documents 或外置磁盘保存的冷备份；旧冷备份可能没有后来添加的钱包、条目或修改。
+
+恢复外部冷备份前，先完全退出 Coffer。在 Finder 按 Command + Shift + G 打开 `~/Library/Application Support/cc.cassette.coffer/`，把整个 `cc.cassette.coffer` 文件夹复制到另一个安全位置，作为“恢复前救援副本”；确认 `vault.vault` 也在副本中。再单独复制冷备份文件，不要移动或覆盖原件。仅在确认救援副本可读后，才用冷备份副本替换正式目录中的 `vault.vault`，保留现有 `vault.bak1`、`vault.bak2`、`vault.bak3` 和冷备份原件。
+
+打开 Coffer，用原主密码解锁，核对备份日期对应的条目。恢复旧快照后，较新的钱包和条目暂时不会显示，这是快照时间差，不代表它们已从救援副本删除。测试结束时完全退出 Coffer，再把救援副本中的 `vault.vault` 放回正式目录；重新打开并确认最新条目及钱包恢复。恢复过程不要选择“放弃并重置”，不要在旧快照上创建或修改数据。任何文件、密码或条目异常时先退出应用并保留所有副本。
+
 只分享 DMG 或 ZIP 安装包。每台电脑独立创建保险库，不需要发送原使用者的主密码、钥匙串或数据目录。
 
 钱包主网转出和恢复演练尚未全部人工验收，详见 [验收记录](superpowers/wallet-validation-2026-10-11.md)。

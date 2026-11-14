@@ -37,10 +37,10 @@ public final class VaultFileStore {
         self.bakURLs = (1...3).map { directory.appendingPathComponent("vault.bak\($0)") }
     }
 
-    /// 默认库目录：~/Library/Application Support/Coffer
+    /// Coffer 应用实际使用的库目录：~/Library/Application Support/cc.cassette.coffer
     public static func defaultDirectory() -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return base.appendingPathComponent("Coffer", isDirectory: true)
+        return base.appendingPathComponent("cc.cassette.coffer", isDirectory: true)
     }
 
     // MARK: 读
