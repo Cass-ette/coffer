@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "provenance": {"kind": "incident-model", "date": "2026-10-11", "description": "TronSave 对 130285 × 67.25 SUN 向下取整为 8761666 SUN；禁止改成向上取整。"},
+  "environment": {"base_energy": 130285, "initial_trx": 50000000}
+}

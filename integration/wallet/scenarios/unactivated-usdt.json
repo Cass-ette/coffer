@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "provenance": {"kind": "incident-model", "date": "2026-10-11", "description": "USDT 已入账但原生账户未激活，TronGrid 账户索引为空，合约 balanceOf 仍有余额。"},
+  "environment": {"initial_trx": 0}
+}

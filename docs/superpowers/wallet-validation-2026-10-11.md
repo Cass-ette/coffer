@@ -3,6 +3,20 @@
 分支：`feature/wallet`。T0–T11 的代码已实现；T8/T11 真机手测与 T12 恢复演练待用户在场完成。
 目前未通过 Coffer 向主网广播真实转账，未替换真实 vault，未改动 `~/Documents/CofferBackups/vault-20261010-prewallet.*`。
 
+## 2026-11-14 转账崩溃修复
+
+用户在租能量转出流程中遇到应用退出。系统报告 `Coffer-2026-11-14-150646.ips` 的故障线程依次为 `Data._Representation.resetBytes(in:)`、`TronTransferService.signRentalPayment`（原第 284 行）、`TransferSheet.send`。崩溃发生于本地签名后的私钥清理，在返回已签名付款、保存付款记录和调用 TronSave 购买接口之前；此次调用尚未提交租赁付款，也未进入 USDT 广播阶段。
+
+HdWalletKit 的 `HDPrivateKey.raw` 返回 `_raw.suffix(32)`，是下标可能从 1 开始的 `Data` 切片。原来的 `resetBytes(in: 0..<key.count)` 越界并触发 SIGTRAP，不能通过 `do/catch` 捕获。改用 `startIndex..<endIndex` 清理实际数据范围，并修复直接转出、GasFree 及钱包派生中的同类清理代码。
+
+修复前，原有租赁本地签名测试复现同样的 signal 5。新增直接转出和租赁的四项回归，覆盖下标从 0、1、17 开始时签名一致、提供方数据保持值语义，以及无效切片密钥抛错时的清理；GasFree 提交测试也使用非零下标私钥。修复后完整 Core 测试 **173/173 通过**。验证使用公开测试凭证和 mock 网络，未操作用户凭证或发起真实付款；主网转出仍需用户重新报价并亲自认证验收。
+
+用户要求长期维护可随真实故障演进的仿真环境。现已增加[本地钱包环境](../../integration/wallet/README.md)：9 个版本化场景、14 项真实本地 HTTP 集成测试，覆盖 USDT 零返回值 / REVERT / 未激活账户、动态能量与执行失败扣费、TronGrid 限流与独立额度、TronSave 小数租金 / 价格变化 / 到账延迟、确认丢失后的哈希恢复、签名校验、重复付款和余额不足时不改状态。完整测试 **173 项 Core + 14 项集成，共 187 项通过**；打包脚本增加测试门禁，后续维护约定写入根目录 `AGENTS.md`。本环境不是完整 TVM 或共识节点，未覆盖 App UI / Touch ID / 真正进程重启，详见环境边界说明。
+
+最终 Release 通用构建成功，arm64 / x86_64、最低 macOS 12.0、本地代码签名及 ZIP 完整性校验通过。产物为 `.build/distribution/Coffer-macOS12-universal.zip`，已生成 SHA-256 校验文件；本轮未替换 `/Applications/Coffer.app`，未发起真实转账。
+
+按用户要求补充 `.build/distribution/Coffer-macOS12-universal.dmg`，包含同一已验证的通用 App、Applications 拖拽快捷方式及安装升级说明。镜像校验、只读挂载、App 签名、可执行文件与构建产物逐字节一致及快捷方式目标检查通过，附 SHA-256。打包脚本以后同时输出 DMG 与 ZIP；制作镜像不读取或修改用户保险库、钥匙串及已安装的 App。
+
 ## 自动验证
 
 | 检查 | 结果 |

@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "provenance": {"kind": "synthetic", "description": "维护周期后能量系数上升；用于验证重新报价和执行预算。阶梯模型不实现 java-tron 的完整动态能量公式。"},
+  "environment": {"energy_schedule": [{"at_block": 1, "factor_ppm": 1000000}, {"at_block": 2, "factor_ppm": 1500000}]}
+}

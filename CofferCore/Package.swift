@@ -20,5 +20,11 @@ let package = Package(
             dependencies: ["CofferCore"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
+        .testTarget(
+            name: "WalletIntegrationTests",
+            dependencies: ["CofferCore", "TronKit", .product(name: "HsCryptoKit", package: "HsCryptoKit.Swift")],
+            path: "IntegrationTests/WalletIntegrationTests",
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
     ]
 )

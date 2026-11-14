@@ -222,14 +222,14 @@ public final class TronTransferService {
 
         try Task.checkCancellation()
         var key = try await signingKey()
-        defer { key.resetBytes(in: 0..<key.count) }
+        defer { key.resetBytes(in: key.startIndex..<key.endIndex) }
         guard TronWalletService().isValidPrivateKeyData(key) else { throw TronWalletError.badPrivateKey }
         guard try Signer.address(privateKey: key).base58 == from else {
             throw TransferValidationError.privateKeyMismatch
         }
         let signature = try Signer.sign(hash: hashData, privateKey: key)
         guard signature.count == 65 else { throw TronGridError.badResponse }
-        key.resetBytes(in: 0..<key.count)
+        key.resetBytes(in: key.startIndex..<key.endIndex)
 
         var body = transaction
         body["signature"] = [Self.hexString(signature)]
@@ -277,11 +277,11 @@ public final class TronTransferService {
         guard (5...120).contains(expires.timeIntervalSince(now)) else { throw RentalError.expired }
         try Task.checkCancellation()
         var key = try await signingKey()
-        defer { key.resetBytes(in: 0..<key.count) }
+        defer { key.resetBytes(in: key.startIndex..<key.endIndex) }
         guard TronWalletService().isValidPrivateKeyData(key),
               try Signer.address(privateKey: key).base58 == from else { throw TransferValidationError.privateKeyMismatch }
         let signature = try Signer.sign(hash: hashData, privateKey: key)
-        key.resetBytes(in: 0..<key.count)
+        key.resetBytes(in: key.startIndex..<key.endIndex)
         guard signature.count == 65 else { throw TronGridError.badResponse }
         var signed = transaction
         signed["signature"] = [Self.hexString(signature)]

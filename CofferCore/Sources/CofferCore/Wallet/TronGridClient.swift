@@ -10,17 +10,20 @@ public final class URLSessionHTTP: HTTPProviding {
     private let base: URL
     private let session: URLSession
     private let coordinator: TronGridRequestCoordinator
+    private let usesTronGridPolicy: Bool
     public init(base: URL = URL(string: "https://api.trongrid.io")!, session: URLSession = .shared) {
         self.base = base
         self.session = session
         self.coordinator = .shared
+        self.usesTronGridPolicy = base.host?.lowercased() == "api.trongrid.io"
     }
 
     init(base: URL = URL(string: "https://api.trongrid.io")!, session: URLSession,
-         coordinator: TronGridRequestCoordinator) {
+         coordinator: TronGridRequestCoordinator, usesTronGridPolicy: Bool? = nil) {
         self.base = base
         self.session = session
         self.coordinator = coordinator
+        self.usesTronGridPolicy = usesTronGridPolicy ?? (base.host?.lowercased() == "api.trongrid.io")
     }
 
     public func post(_ path: String, body: [String: Any], headers: [String: String]) async throws -> Data {
@@ -42,7 +45,7 @@ public final class URLSessionHTTP: HTTPProviding {
 
     private func run(_ request: URLRequest) async throws -> Data {
         try Task.checkCancellation()
-        let isTronGrid = request.url?.host?.lowercased() == "api.trongrid.io"
+        let isTronGrid = usesTronGridPolicy
         let authenticated = !(request.value(forHTTPHeaderField: "TRON-PRO-API-KEY") ?? "").isEmpty
         let cacheParameters = isTronGrid && Self.isPublicParameterQuery(request)
         let forceRefresh = (request.value(forHTTPHeaderField: "Cache-Control") ?? "")

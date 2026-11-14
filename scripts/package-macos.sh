@@ -2,6 +2,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+swift test --package-path CofferCore
 xcodegen generate
 xcodebuild -quiet -scheme Coffer -configuration Release \
     -derivedDataPath .build/macos12-universal \
@@ -26,4 +27,6 @@ cp docs/install-macos.md "$package_dir/INSTALL.md"
 ditto -c -k --sequesterRsrc "$package_dir" .build/distribution/Coffer-macOS12-universal.zip
 shasum -a 256 .build/distribution/Coffer-macOS12-universal.zip \
     > .build/distribution/Coffer-macOS12-universal.zip.sha256
+bash scripts/create-macos-dmg.sh "$app_bundle"
 printf 'Package: %s/.build/distribution/Coffer-macOS12-universal.zip\n' "$PWD"
+printf 'Installer: %s/.build/distribution/Coffer-macOS12-universal.dmg\n' "$PWD"

@@ -1,0 +1,22 @@
+{
+  "initial_trx": 18500000,
+  "initial_usdt": 3500000,
+  "free_bandwidth": 600,
+  "base_energy": 64285,
+  "energy_price": 100,
+  "bandwidth_price": 1000,
+  "new_recipient_extra_energy": 0,
+  "energy_schedule": [{"at_block": 1, "factor_ppm": 1000000}],
+  "usdt_return": "0000000000000000000000000000000000000000000000000000000000000000",
+  "vm_revert": false,
+  "rental_unit_price": 67.25,
+  "rental_supply": 10000000,
+  "delegation_delay_blocks": 0,
+  "receipt_delay_blocks": 0,
+  "faults": [],
+  "rate_limits": {},
+  "accounts": [{
+    "hex": "417e5f4552091a69125d5dfcb7b8c2659029395bdf",
+    "public_key": "0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8"
+  }]
+}

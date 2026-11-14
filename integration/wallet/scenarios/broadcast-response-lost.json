@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "provenance": {"kind": "synthetic", "description": "USDT 已执行但广播确认丢失；重启后通过已落盘哈希查回执，不重发。"},
+  "environment": {"receipt_delay_blocks": 2, "faults": [{"path": "/wallet/broadcasttransaction", "attempts": [1], "phase": "after", "status": 200, "body": {}}]}
+}

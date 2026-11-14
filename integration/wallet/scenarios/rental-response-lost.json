@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "provenance": {"kind": "synthetic", "description": "租赁付款已经执行，客户端收到不完整确认；应保留付款记录并查询，不能自动再买。"},
+  "environment": {"delegation_delay_blocks": 2, "faults": [{"path": "/v2/buy-resource", "attempts": [1], "phase": "after", "status": 200, "body": {}}]}
+}

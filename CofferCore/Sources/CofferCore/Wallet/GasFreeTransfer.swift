@@ -22,10 +22,10 @@ extension GasFreeService {
                                    value: quote.value, maxFee: quote.maxFee, deadline: deadline, nonce: fresh.snapshot.nonce)
         try Task.checkCancellation()
         var key = try signingKey()
-        defer { key.resetBytes(in: 0..<key.count) }
+        defer { key.resetBytes(in: key.startIndex..<key.endIndex) }
         var signature = try GasFreeCrypto.sign(permit, key: key)
-        key.resetBytes(in: 0..<key.count)
-        defer { signature.resetBytes(in: 0..<signature.count) }
+        key.resetBytes(in: key.startIndex..<key.endIndex)
+        defer { signature.resetBytes(in: signature.startIndex..<signature.endIndex) }
         let record = try GasFreeRecord(permit: permit, signatureDigest: GasFreeCrypto.hex(Data(SHA256.hash(data: signature))))
         try Task.checkCancellation()
         var reserved = previous

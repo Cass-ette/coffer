@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "provenance": {"kind": "incident-model", "date": "2026-10-11", "description": "USDT 模拟成功、ret 为 [{}]、ABI 返回零，但有完整 Transfer 事件。公开测试账户重建，非生产抓包。"},
+  "environment": {}
+}

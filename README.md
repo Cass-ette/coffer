@@ -93,6 +93,9 @@ GasFree 是由同一钱包密钥控制的独立合约地址，普通地址余额
 运行需要 macOS 12 或更新版本，支持 Intel 与 Apple 芯片。Touch ID 可选，没有时使用主密码；启动到前台后自动请求一次指纹，取消后可切换主密码。
 macOS 12 的登录时启动需在系统登录项中手动配置。安装和分发说明见 [安装指南](docs/install-macos.md)。
 
+`./scripts/package-macos.sh` 会生成可拖拽安装的 DMG 和 ZIP，位于 `.build/distribution/`。已有用户先退出并备份加密数据目录，再覆盖应用；升级沿用原保险库和主密码。
+GitHub Actions 的 `macOS installers` 流程会执行同样的测试与打包，成功后可从运行页面下载 `Coffer-macOS12-universal` artifact。
+
 从源码构建需要支持 Swift 6.2 的 Xcode，以及 [xcodegen](https://github.com/yonaskolb/XcodeGen)；构建机器可运行较新系统，产物最低支持 macOS 12。
 
 ```bash
@@ -103,6 +106,12 @@ open Coffer.xcodeproj   # ⌘R 运行
 ```
 
 数据文件位于 `~/Library/Application Support/cc.cassette.coffer/`，永不进入仓库。
+
+## 钱包回归与仿真环境
+
+运行 `swift test --package-path CofferCore` 验证单元测试与本地 HTTP 集成测试。后者维护独立余额、能量、带宽、租赁和回执状态，使用公开测试凭证及临时记录；构建机器需要 Python 3.9+ 和 OpenSSL（macOS 自带 LibreSSL 可用）。
+
+每次真实钱包故障都应补充版本化环境场景及回归，逐步校准模拟行为。场景、运行方法与维护流程见[钱包故障仿真环境](integration/wallet/README.md)。打包脚本会在任何测试失败时停止；真实网络验收继续单独执行。
 
 ## 已知问题
 
