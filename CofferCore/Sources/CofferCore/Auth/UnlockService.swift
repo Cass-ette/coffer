@@ -176,9 +176,11 @@ public final class UnlockService: ObservableObject {
     /// Keychain 里的 DEK 不动——DEK 从不随保存/备份变化，恢复后指纹解锁依旧可用。
     @discardableResult
     public func restoreFromLatestBackup() -> Bool {
-        guard vaultStore.fileStore.latestBackup() != nil else { return false }
+        guard let backupNumber = (1...3).first(where: {
+            (try? vaultStore.fileStore.readBackup($0)) != nil
+        }) else { return false }
         do {
-            try vaultStore.fileStore.restoreFromBackup(1)
+            try vaultStore.fileStore.restoreFromBackup(backupNumber)
             loadEnvelope()
             return true
         } catch {

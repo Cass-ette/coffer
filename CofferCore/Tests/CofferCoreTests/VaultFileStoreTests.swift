@@ -18,6 +18,10 @@ final class VaultFileStoreTests: XCTestCase {
         super.tearDown()
     }
 
+    func testDefaultDirectoryMatchesApplicationVaultLocation() {
+        XCTAssertEqual(VaultFileStore.defaultDirectory().lastPathComponent, "cc.cassette.coffer")
+    }
+
     private func envelope(updatedAt: Date = Date()) -> VaultFileEnvelope {
         VaultFileEnvelope(
             kdf: .init(algo: "PBKDF2-SHA256", iterations: 1000, salt: Data([1, 2, 3])),

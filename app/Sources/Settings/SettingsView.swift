@@ -10,6 +10,7 @@ struct SettingsView: View {
     @State private var registrationFailed = false
     @State private var saveError: String?
     @State private var showingChangePassword = false
+    @State private var showingBackupHelp = false
     @State private var confirmRestore = false
     @State private var confirmReset = false
     @State private var apiKeyCheck: Task<Void, Never>?
@@ -78,8 +79,10 @@ struct SettingsView: View {
                 }
             }
             GasFreeSettingsSection()
-            Section("数据") {
-                Button("从备份恢复…") { confirmRestore = true }
+            Section("数据与备份") {
+                Text("Coffer 每次保存会保留最近三份加密自动备份；恢复不会解密或上传保险库。")
+                    .font(.caption).foregroundStyle(.secondary)
+                Button("从本机自动备份恢复…") { confirmRestore = true }
                     .disabled(!unlock.isUnlocked)
                 Button("重置保险库…", role: .destructive) { confirmReset = true }
                 CofferLabeledContent("保险库位置") {
@@ -88,6 +91,9 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
                 }
+                Button("如何备份与恢复？") { showingBackupHelp = true }
+                Text("自动恢复会回滚条目，不会合并新旧数据。旧备份中可能没有后来添加的钱包；恢复前请先保留当前数据副本。")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
         .cofferGroupedForm()
@@ -105,7 +111,8 @@ struct SettingsView: View {
                 .environmentObject(app)
                 .environmentObject(unlock)
         }
-        .confirmationDialog("用 vault.bak1 覆盖当前保险库？生物解锁不受影响。",
+        .sheet(isPresented: $showingBackupHelp) { BackupHelpSheet() }
+        .confirmationDialog("从本机自动备份恢复？",
                             isPresented: $confirmRestore, titleVisibility: .visible) {
             Button("恢复", role: .destructive) {
                 if app.unlock.restoreFromLatestBackup() {
@@ -114,6 +121,8 @@ struct SettingsView: View {
                     saveError = "恢复失败：备份不可用"
                 }
             }
+        } message: {
+            Text("将最近一份可读取的本机自动备份恢复为当前保险库，较新的条目和钱包可能暂时不显示。当前文件会保留在备份轮换中；此操作不会导入外部冷备份。")
         }
         .confirmationDialog("删除所有数据并重新创建？此操作不可撤销。",
                             isPresented: $confirmReset, titleVisibility: .visible) {

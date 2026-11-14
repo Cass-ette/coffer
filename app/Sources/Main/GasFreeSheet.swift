@@ -31,7 +31,7 @@ struct GasFreeSheet: View {
     private func money(_ amount: Int64) -> String { TronGridClient.formatUSDT(amount) + " USDT" }
 
     var body: some View {
-        ScrollView {
+        WalletSheetLayout {
             VStack(alignment: .leading, spacing: 18) {
                 HStack {
                     Text("官方 GasFree 钱包").font(.title2.bold())
@@ -72,7 +72,6 @@ struct GasFreeSheet: View {
                 }
             }.padding(26)
         }
-        .frame(width: 620, height: 730)
         .interactiveDismissDisabled()
         .onAppear(perform: refreshWallet)
         .onDisappear { operation?.cancel() }
@@ -176,7 +175,11 @@ struct GasFreeSheet: View {
     }
 
     private func store() throws -> GasFreeJournalStore {
-        try GasFreeJournalStore(directory: VaultFileStore.defaultDirectory().appendingPathComponent("gasfree-transfers"), owner: owner)
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        // Keep the existing journal location independent of the vault directory;
+        // changing it would hide pending authorizations after an upgrade.
+        let directory = appSupport.appendingPathComponent("Coffer/gasfree-transfers", isDirectory: true)
+        return try GasFreeJournalStore(directory: directory, owner: owner)
     }
     private func service() throws -> GasFreeService {
         guard let credentials = try GasFreeCredentialStore().load() else { throw GasFreeError.credentials }

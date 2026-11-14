@@ -167,6 +167,30 @@ final class UnlockServiceTests: XCTestCase {
         XCTAssertEqual(service.document?.entries.first?.title, "Original")
     }
 
+    func testRestoreSkipsCorruptFirstBackup() throws {
+        try service.createVault(masterPassword: "test-backup-password")
+        try service.persist()
+        let expected = try fileStore.readEnvelope()
+        try service.persist()
+        try service.persist()
+        try Data("broken".utf8).write(to: dir.appendingPathComponent("vault.bak1"))
+
+        XCTAssertTrue(service.restoreFromLatestBackup())
+        XCTAssertEqual(try fileStore.readEnvelope(), expected)
+    }
+
+    func testRestoreUsesSecondBackupWhenFirstIsMissing() throws {
+        try service.createVault(masterPassword: "test-backup-password")
+        try service.persist()
+        let expected = try fileStore.readEnvelope()
+        try service.persist()
+        try service.persist()
+        try FileManager.default.removeItem(at: dir.appendingPathComponent("vault.bak1"))
+
+        XCTAssertTrue(service.restoreFromLatestBackup())
+        XCTAssertEqual(try fileStore.readEnvelope(), expected)
+    }
+
     func testDiscardVaultAndBackups() throws {
         // Create vault
         try service.createVault(masterPassword: "pw-123456")
